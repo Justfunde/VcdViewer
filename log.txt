@@ -1,0 +1,18 @@
+"/home/justfunde/Work/MIET/vcd/c17.vcd"
+
+=== FillTimingResults ===
+timing.size()      = 170
+
+uniqueTime.size()  = 41
+first TS = 10000, last TS = 500000
+
+[Stage 2] fill timeStamp2ValueMap …
+
+timeStamp2ValueMap.size() = 170
+
+uniqueAliasSet.size()       = 11
+itemsToInsert (1‑й TS)      = 10
+
+[Stage 6] propagate previous values …
+
+=== FillTimingResults done. Final map size: 451 ===
