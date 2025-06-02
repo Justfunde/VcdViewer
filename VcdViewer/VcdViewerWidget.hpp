@@ -31,19 +31,14 @@ class VcdViewerWidget : public QWidget
 {
    Q_OBJECT
 
- public:
- signals:
+public:
+signals:
    void
-      AskForReadFile(QString);
+       AskForReadFile(QString);
 
- public:
-   VcdViewerWidget(QWidget* Parent = nullptr)
-      : QWidget(Parent)
-      , m_vcdReader(new VcdAsyncFileReader(this))
-      , m_modulesView(new QTreeView(this))
-      , m_signalTreeView(new SignalTreeView(this))
-      , m_pinsView(new QTableView(this))
-      , m_pinTableModel(new PinTableModel(this))
+public:
+   VcdViewerWidget(QWidget *Parent = nullptr)
+       : QWidget(Parent), m_vcdReader(new VcdAsyncFileReader(this)), m_modulesView(new QTreeView(this)), m_signalTreeView(new SignalTreeView(this)), m_pinsView(new QTableView(this)), m_pinTableModel(new PinTableModel(this))
    {
       setWindowTitle("VCD Module and Signal Viewer");
       resize(1400, 1300);
@@ -51,13 +46,13 @@ class VcdViewerWidget : public QWidget
       qRegisterMetaType<PinDescriptionPtr>("PinDescriptionPtr");
 
       // Устанавливаем центральный виджет
-      QVBoxLayout* mainLayout = new QVBoxLayout;
+      QVBoxLayout *mainLayout = new QVBoxLayout;
       setLayout(mainLayout);
 
       // Создаем кнопку "Выбрать файл"
-      QPushButton* buttonZoomIn = new QPushButton;
-      QPushButton* buttonZoomOut = new QPushButton;
-      QPushButton* buttonResetZoom = new QPushButton;
+      QPushButton *buttonZoomIn = new QPushButton;
+      QPushButton *buttonZoomOut = new QPushButton;
+      QPushButton *buttonResetZoom = new QPushButton;
 
       QIcon zoomInIcon = QIcon(":icons/zoomIn.ico");
       buttonZoomIn->setIcon(zoomInIcon);
@@ -68,7 +63,7 @@ class VcdViewerWidget : public QWidget
       QIcon resetZoomIcon = QIcon(":icons/zoomReset.ico");
       buttonResetZoom->setIcon(resetZoomIcon);
 
-      QHBoxLayout* buttonLayout = new QHBoxLayout;
+      QHBoxLayout *buttonLayout = new QHBoxLayout;
       buttonLayout->addWidget(buttonZoomIn);
       buttonLayout->addWidget(buttonZoomOut);
       buttonLayout->addWidget(buttonResetZoom);
@@ -80,7 +75,7 @@ class VcdViewerWidget : public QWidget
 
       m_wfView = new WaveformView;
 
-      QVBoxLayout* wfLayout = new QVBoxLayout;
+      QVBoxLayout *wfLayout = new QVBoxLayout;
       wfLayout->addWidget(m_wfView->GetScaleView());
       wfLayout->addWidget(m_wfView);
       wfLayout->setContentsMargins(0, 0, 0, 0);
@@ -88,37 +83,37 @@ class VcdViewerWidget : public QWidget
       m_wfView->setFrameStyle(QFrame::NoFrame);
       m_wfView->GetScaleView()->setFrameStyle(QFrame::NoFrame);
 
-      QHBoxLayout* signalViewLayout = new QHBoxLayout();
+      QHBoxLayout *signalViewLayout = new QHBoxLayout();
       signalViewLayout->addWidget(m_signalTreeView);
       signalViewLayout->addLayout(wfLayout);
 
-      QPushButton* insertSignalBtn = new QPushButton("Insert");
+      QPushButton *insertSignalBtn = new QPushButton("Insert");
       insertSignalBtn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
 
-      QPushButton* replaceSignalBtn = new QPushButton("Replace");
+      QPushButton *replaceSignalBtn = new QPushButton("Replace");
       replaceSignalBtn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
 
-      QPushButton* appendSignalBtn = new QPushButton("Append");
+      QPushButton *appendSignalBtn = new QPushButton("Append");
       appendSignalBtn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
 
-      QHBoxLayout* opBtnLayout = new QHBoxLayout;
+      QHBoxLayout *opBtnLayout = new QHBoxLayout;
       opBtnLayout->addWidget(appendSignalBtn);
       opBtnLayout->addWidget(insertSignalBtn);
       opBtnLayout->addWidget(replaceSignalBtn);
 
-      QVBoxLayout* inputTableLayout = new QVBoxLayout();
+      QVBoxLayout *inputTableLayout = new QVBoxLayout();
       inputTableLayout->addWidget(m_modulesView);
       inputTableLayout->addWidget(m_pinsView);
       inputTableLayout->addLayout(opBtnLayout);
 
-      QSplitter* splitter = new QSplitter(Qt::Horizontal, this);
+      QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
       splitter->setChildrenCollapsible(false); // Отключить возможность полного сворачивания
 
       // Создаем виджеты для размещения макетов
-      QWidget* inputTableWidget = new QWidget(this);
+      QWidget *inputTableWidget = new QWidget(this);
       inputTableWidget->setLayout(inputTableLayout);
 
-      QWidget* signalViewWidget = new QWidget(this);
+      QWidget *signalViewWidget = new QWidget(this);
       signalViewWidget->setLayout(signalViewLayout);
 
       // Добавляем виджеты в сплиттер
@@ -159,12 +154,12 @@ class VcdViewerWidget : public QWidget
       m_signalTreeView->setModel(m_signalTreeModel);
 
       // Связываем полосы прокрутки
-      QScrollBar* treeScrollBar = m_signalTreeView->GetVerticalScrollBar();
-      QScrollBar* waveformScrollBar = m_wfView->GetVerticalScrollBar();
+      QScrollBar *treeScrollBar = m_signalTreeView->GetVerticalScrollBar();
+      QScrollBar *waveformScrollBar = m_wfView->GetVerticalScrollBar();
 
       // Синхронизация полос прокрутки
       QObject::connect(treeScrollBar, &QScrollBar::valueChanged, waveformScrollBar, &QScrollBar::setValue);
-      QObject::connect((SnapScrollBar*)waveformScrollBar, &SnapScrollBar::snapped, treeScrollBar, &QScrollBar::setValue);
+      QObject::connect((SnapScrollBar *)waveformScrollBar, &SnapScrollBar::snapped, treeScrollBar, &QScrollBar::setValue);
 
       auto getSelectedPins = [=]()
       {
@@ -173,7 +168,7 @@ class VcdViewerWidget : public QWidget
          auto selectedList = m_pinsView->selectionModel()->selectedRows();
          ret.reserve(selectedList.size());
 
-         for (const auto& it : selectedList)
+         for (const auto &it : selectedList)
          {
             ret.emplace_back(m_pinTableModel->At(it.row()));
          }
@@ -181,15 +176,11 @@ class VcdViewerWidget : public QWidget
       };
 
       connect(appendSignalBtn, &QPushButton::clicked, this, [=]()
-      {
-         m_signalTreeModel->AppendSignals(getSelectedPins());
-      });
+              { m_signalTreeModel->AppendSignals(getSelectedPins()); });
       connect(replaceSignalBtn, &QPushButton::clicked, this, [=]()
-      {
-         m_signalTreeModel->ReplaceSignalsWithSelection(m_signalTreeView->selectionModel(), getSelectedPins());
-      });
+              { m_signalTreeModel->ReplaceSignalsWithSelection(m_signalTreeView->selectionModel(), getSelectedPins()); });
       connect(insertSignalBtn, &QPushButton::clicked, this, [=]()
-      {
+              {
          QModelIndex current = m_signalTreeView->selectionModel()->currentIndex();
          int pos = std::numeric_limits<int>::max();
 
@@ -202,14 +193,13 @@ class VcdViewerWidget : public QWidget
                pos = current.parent().row() + 1;
             }
          }
-         m_signalTreeModel->InsertSignals(getSelectedPins(), pos);
-      });
+         m_signalTreeModel->InsertSignals(getSelectedPins(), pos); });
       // Соединяем сигналы и слоты
       connect(this, &VcdViewerWidget::AskForReadFile, m_vcdReader, &VcdAsyncFileReader::ReadFile);
       connect(m_vcdReader, &VcdAsyncFileReader::ReadFileError, this, [this](QString str)
-      { qDebug() << "Error in reading file: " << str; });
+              { qDebug() << "Error in reading file: " << str; });
       connect(m_vcdReader, &VcdAsyncFileReader::ReadFileReady, this, [=](auto handle)
-      {
+              {
          qDebug() << "File was successfully read: ";
          m_modulesTreeModel->SetHandle(handle);
          m_signalTreeModel->SetHandle(handle);
@@ -217,14 +207,11 @@ class VcdViewerWidget : public QWidget
          m_wfView->SetHandle(handle);
          m_prevZoomOut.store(false);
          QTimer::singleShot(200, [this]()
-         { this->FixZoom(); });
-      });
+         { this->FixZoom(); }); });
 
       connect(m_modulesView, &QTreeView::clicked, m_modulesTreeModel, &ModuleTreeModel::OnItemClicked);
       connect(m_modulesTreeModel, &ModuleTreeModel::ModuleClicked, this, [this](std::shared_ptr<Module> module)
-      {
-         m_pinTableModel->SetModule(module);
-      });
+              { m_pinTableModel->SetModule(module); });
 
       connect(m_pinsView, &QTreeView::doubleClicked, m_pinTableModel, &PinTableModel::OnItemClicked);
       connect(m_pinTableModel, &PinTableModel::PinClicked, m_signalTreeModel, &SignalTreeModel::AppendSignal);
@@ -233,67 +220,67 @@ class VcdViewerWidget : public QWidget
       connect(buttonZoomIn, &QPushButton::clicked, m_wfView, &WaveformView::ZoomIn);
       connect(buttonZoomOut, &QPushButton::clicked, m_wfView, &WaveformView::ZoomOut);
       connect(buttonResetZoom, &QPushButton::clicked, this, [this]()
-      { m_prevZoomOut.store(false); FixZoom(); });
+              { m_prevZoomOut.store(false); FixZoom(); });
       connect(m_signalTreeView, &SignalTreeView::itemExpandedOrCollapsed, m_wfView, &WaveformView::OnItemExpandedOrCollapsed);
 
       connect(
-         m_signalTreeModel,
-         &SignalTreeModel::SignalsUpdated,
-         this,
-         [this](QVector<EmmitedSignalDescription> Signals)
-      {
-         auto GetGsValue = [](const QString& value)
-         {
-            if (value == "0")
-            {
-               // return ...
-            }
-            else if (value == "1")
-            {
-               // return ...
-            }
-            else if (value == "z")
-            {
-               // return ...
-            }
-            else if (value == "x")
-            {
-               // return ...
-            }
-            else
-            {
-               // ...
-            }
-         };
+          m_signalTreeModel,
+          &SignalTreeModel::SignalsUpdated,
+          this,
+          [this](QVector<EmmitedSignalDescription> Signals)
+          {
+             auto GetGsValue = [](const QString &value)
+             {
+                if (value == "0")
+                {
+                   // return ...
+                }
+                else if (value == "1")
+                {
+                   // return ...
+                }
+                else if (value == "z")
+                {
+                   // return ...
+                }
+                else if (value == "x")
+                {
+                   // return ...
+                }
+                else
+                {
+                   // ...
+                }
+             };
 
-         // QVector<> <- Тут вектор, который надо пробросить в globalState
-         for (const auto& it : Signals)
-         {
-            const QString& name = it.name;
-            const QString& value = it.value;
-            // if (it.pinDescription->bitDepth.has_value()) // Тут обрабатываются шины/многоразрядные регистры
-            //{
-            //    // Тут я не знаю, в каком виде передавать шины. Допустим сигналы верхнего уровня модели я пропускаю (прим. counter[4:0]) и обрабатываю только разворот дерева (прим. counter[4],counter[3], counter[2], ...)
-            //    if (name.contains(":"))
-            //    {
-            //       continue;
-            //    }
-            //    // Тут можно пихать в вектор как есть с конвертацией value с помощью функции GetGsValue()
-            //    std::cout << name.toStdString() << ":" << value.toStdString() << std::endl;
-            // }
-            // else
-            //{
-            //    // Тут можно пихать в вектор как есть с конвертацией value с помощью функции GetGsValue()
-            //    std::cout << name.toStdString() << ":" << value.toStdString() << std::endl;
-            // }
-         }
-      });
+             // QVector<> <- Тут вектор, который надо пробросить в globalState
+             for (const auto &it : Signals)
+             {
+                const QString &name = it.name;
+                const QString &value = it.value;
+                // if (it.pinDescription->bitDepth.has_value()) // Тут обрабатываются шины/многоразрядные регистры
+                //{
+                //    // Тут я не знаю, в каком виде передавать шины. Допустим сигналы верхнего уровня модели я пропускаю (прим. counter[4:0]) и обрабатываю только разворот дерева (прим. counter[4],counter[3], counter[2], ...)
+                //    if (name.contains(":"))
+                //    {
+                //       continue;
+                //    }
+                //    // Тут можно пихать в вектор как есть с конвертацией value с помощью функции GetGsValue()
+                //    std::cout << name.toStdString() << ":" << value.toStdString() << std::endl;
+                // }
+                // else
+                //{
+                //    // Тут можно пихать в вектор как есть с конвертацией value с помощью функции GetGsValue()
+                //    std::cout << name.toStdString() << ":" << value.toStdString() << std::endl;
+                // }
+             }
+          });
 
-      emit AskForReadFile("/home/justfunde/Projects/vcd/VcdTests/c432.gates.flat.synth - XXL.vcd");
+      emit AskForReadFile("/home/justfunde/Projects/MIET/VcdViewer/VcdTests/s432_sky130/c432.gates.flat.vcd");
       //  Устанавливаем заголовок окна и размеры
    }
 
- public slots:
+public slots:
    void
    FixZoom()
    {
@@ -303,7 +290,7 @@ class VcdViewerWidget : public QWidget
          {
             m_prevZoomOut.store(true);
             QTimer::singleShot(10, [this]()
-            { FixZoom(); });
+                               { FixZoom(); });
          }
       }
       else if (!m_prevZoomOut.load())
@@ -311,7 +298,7 @@ class VcdViewerWidget : public QWidget
          m_wfView->ZoomIn();
          m_prevZoomOut.store(false);
          QTimer::singleShot(10, [this]()
-         { FixZoom(); });
+                            { FixZoom(); });
       }
    }
 
@@ -324,17 +311,17 @@ class VcdViewerWidget : public QWidget
       m_wfView->SetHandle(nullptr);
    }
 
- private:
-   VcdAsyncFileReader* m_vcdReader;
-   QTreeView* m_modulesView;
-   QTableView* m_pinsView;
-   SignalTreeView* m_signalTreeView;
-   ModuleTreeModel* m_modulesTreeModel;
+private:
+   VcdAsyncFileReader *m_vcdReader;
+   QTreeView *m_modulesView;
+   QTableView *m_pinsView;
+   SignalTreeView *m_signalTreeView;
+   ModuleTreeModel *m_modulesTreeModel;
 
-   PinTableModel* m_pinTableModel;
-   SignalTreeModel* m_signalTreeModel;
-   VcdAsyncFileReader* m_reader;
-   WaveformView* m_wfView;
+   PinTableModel *m_pinTableModel;
+   SignalTreeModel *m_signalTreeModel;
+   VcdAsyncFileReader *m_reader;
+   WaveformView *m_wfView;
 
    std::atomic_bool m_prevZoomOut = false;
 };

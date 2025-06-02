@@ -4,15 +4,12 @@
 #include <QDebug>
 #include <iostream>
 
-SimpleWaveItem::SimpleWaveItem(const std::shared_ptr<newVcd::Handle>& h,
+SimpleWaveItem::SimpleWaveItem(const std::shared_ptr<newVcd::Handle> &h,
                                std::shared_ptr<newVcd::SimplePinDescription> p,
                                int yOffset,
                                std::optional<std::size_t> idx,
-                               QGraphicsItem* parent)
-   : QGraphicsItem(parent)
-   , handle(h)
-   , pin(p)
-   , idx(idx)
+                               QGraphicsItem *parent)
+    : QGraphicsItem(parent), handle(h), pin(p), idx(idx)
 {
    setPos(0, yOffset);
    setCacheMode(DeviceCoordinateCache);
@@ -30,10 +27,9 @@ SimpleWaveItem::boundingRect() const
            qreal(WAVEFORM_HEIGHT + SPACING)};
 }
 
-void
-SimpleWaveItem::paint(QPainter* p,
-                      const QStyleOptionGraphicsItem* opt,
-                      QWidget*)
+void SimpleWaveItem::paint(QPainter *p,
+                           const QStyleOptionGraphicsItem *opt,
+                           QWidget *)
 {
    p->setRenderHint(QPainter::Antialiasing);
 
@@ -54,7 +50,7 @@ SimpleWaveItem::paint(QPainter* p,
    yellowPen.setCosmetic(true);
    p->setPen(yellowPen);
 
-   for (const auto& it : precalcedZPath)
+   for (const auto &it : precalcedZPath)
    {
       p->drawPath(it);
    }
@@ -67,21 +63,20 @@ SimpleWaveItem::paint(QPainter* p,
    p->setPen(redPen);
    p->setBrush(darkRedBrush);
 
-   for (const auto& it : precalcedXRectangles)
+   for (const auto &it : precalcedXRectangles)
    {
       p->drawRect(it);
    }
 }
 
 // строит полный путь для всей последовательности
-void
-SimpleWaveItem::precalcFullPath()
+void SimpleWaveItem::precalcFullPath()
 {
    const int yPos = SPACING;
    const int yNeg = WAVEFORM_HEIGHT;
    const int yZ = WAVEFORM_HEIGHT / 2;
 
-   auto yFor = [&](const QString& s)
+   auto yFor = [&](const QString &s)
    {
       if (s == "1")
          return yPos;
@@ -109,55 +104,84 @@ SimpleWaveItem::precalcFullPath()
    }
    uint64_t lastTs = itL;
 
-   for (const auto& it : pin->timeline())
+   QString s;
+   if (pin->timeline().empty())
    {
-      uint64_t ts = it.timestamp;
-      QString s(pin->getValueChar(ts, idx.value_or(0)));
-      // qWarning() << "[" << ts << "," << s << "]";
-      if (s != prev)
+      const char initState = pin->initState()[0];
+      if (initState == '0')
       {
-         const uint64_t yForPrevValue = yFor(prev);
-         const uint64_t yForValue = yFor(s);
-
-         path.lineTo(ts, yForPrevValue);
-         path.lineTo(ts, yForValue);
-
-         if (prev == "x")
-         {
-            xValueRanges.push_back({xL, ts});
-         }
-         if (s == "x")
-         {
-            xL = ts;
-         }
-
-         prev = s;
-
-         if (yForPrevValue == yZ)
-         {
-            zTmpPath.lineTo(ts, yZ);
-            precalcedZPath.push_back(zTmpPath);
-            zTmpPath.clear();
-         }
-         if (yForValue == yZ)
-         {
-            zTmpPath.moveTo(ts, yForValue);
-         }
+         path.moveTo(0, yNeg);
+         path.lineTo(handle->maxTs(), yNeg);
       }
-      else
+      else if (initState == '1')
       {
-         const uint64_t yForValue = yFor(s);
-         path.lineTo(ts, yForValue);
-
-         if (yForValue == yZ)
-         {
-            zTmpPath.lineTo(ts, yForValue);
-         }
+         path.moveTo(0, yPos);
+         path.lineTo(handle->maxTs(), yPos);
+      }
+      else if (initState == 'z')
+      {
+         zTmpPath.moveTo(0, yZ);
+         zTmpPath.lineTo(handle->maxTs(), yZ);
+      }
+      else if (initState == 'x')
+      {
+         xValueRanges.push_back({0, handle->maxTs()});
       }
    }
+   for (const auto &it : pin->timeline())
+   {
+      uint64_t ts = it.timestamp;
+      s = (pin->getValueChar(ts, idx.value_or(0)));
+      // qWarning() << "[" << ts << "," << s << "]";
+      const uint64_t yForPrevValue = yFor(prev);
+      const uint64_t yForValue = yFor(s);
+
+      path.lineTo(ts, yForPrevValue);
+      path.lineTo(ts, yForValue);
+
+      if (prev == "x")
+      {
+         xValueRanges.push_back({xL, ts});
+      }
+      if (s == "x")
+      {
+         xL = ts;
+      }
+
+      prev = s;
+
+      if (yForPrevValue == yZ)
+      {
+         zTmpPath.lineTo(ts, yZ);
+         precalcedZPath.push_back(zTmpPath);
+         zTmpPath.clear();
+      }
+      if (yForValue == yZ)
+      {
+         zTmpPath.moveTo(ts, yForValue);
+      }
+   }
+
+   if (s == "0")
+   {
+      path.lineTo(handle->maxTs(), yNeg);
+   }
+   else if (s == "1")
+   {
+      path.lineTo(handle->maxTs(), yPos);
+   }
+   else if (s == "z")
+   {
+      zTmpPath.lineTo(handle->maxTs(), yZ);
+   }
+   else if (s == "x")
+   {
+      xValueRanges.push_back({pin->timeline().rbegin()->timestamp, handle->maxTs()});
+   }
+
    precalcedPath = std::move(path);
 
-   for (const auto& [left, right] : xValueRanges)
+   for (const auto &[left, right] : xValueRanges)
    {
       QRect rect(left, yPos, right - left, WAVEFORM_HEIGHT);
       precalcedXRectangles.emplace_back(rect);
@@ -165,8 +189,7 @@ SimpleWaveItem::precalcFullPath()
 }
 
 // бинарный поиск t, чтобы path.pointAtPercent(t).x() ≈ xTarget
-qreal
-SimpleWaveItem::findT(const QPainterPath& path, qreal xTarget, int iters)
+qreal SimpleWaveItem::findT(const QPainterPath &path, qreal xTarget, int iters)
 {
    qreal lo = 0, hi = 1;
    for (int i = 0; i < iters; ++i)
@@ -182,7 +205,7 @@ SimpleWaveItem::findT(const QPainterPath& path, qreal xTarget, int iters)
 
 // вырезает из path кусок между x0 и x1 (аппроксимация полилинией с sampleSteps точками)
 QPainterPath
-SimpleWaveItem::subPathByX(const QPainterPath& path,
+SimpleWaveItem::subPathByX(const QPainterPath &path,
                            qreal x0, qreal x1,
                            int sampleSteps)
 {
