@@ -276,7 +276,7 @@ public:
              }
           });
 
-      emit AskForReadFile("/home/justfunde/Projects/MIET/VcdViewer/VcdTests/s432_sky130/c432.gates.flat.vcd");
+      emit AskForReadFile("/home/justfunde/Projects/MIET/VcdViewer/VcdTests/c432.gates.flat.synth - XXL.vcd");
       //  Устанавливаем заголовок окна и размеры
    }
 
