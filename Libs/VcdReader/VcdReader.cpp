@@ -10,11 +10,9 @@
 #include <unordered_set>
 #include <vector>
 
-#include <fcntl.h>    // open
-#include <sys/mman.h> // mmap, munmap
-#include <unistd.h>   // close
+#include <fstream>
 
-namespace newVcd
+namespace vcd
 {
    std::string
    Handle::ExtractDate()
@@ -80,15 +78,16 @@ namespace newVcd
             if (currentToken == "$var")
             {
                PinDescriptionPtr var = ExtractVar();
-               if (m_alias2pin.count(var->alias()))
+               if (m_alias2pin.count(var->GetAlias()))
                {
-                  module->m_pins.push_back(m_alias2pin[var->alias()]);
+                  module->m_pins.push_back(m_alias2pin[var->GetAlias()]);
                }
                else
                {
                   module->m_pins.push_back(var);
-                  m_alias2pin[var->alias()] = var;
+                  m_alias2pin[var->GetAlias()] = var;
                }
+               var->SetParent(module);
             }
             if (currentToken == "$scope")
             {
@@ -169,7 +168,7 @@ namespace newVcd
       }
       else if (varSize != 1)
       {
-         descrPtr = std::make_shared<MultiplePinDescription>(type, varAlias, varName, bitDepthPair.value());
+         descrPtr = std::make_shared<BusPinDescription>(type, varAlias, varName, bitDepthPair.value());
       }
       else
       {
@@ -276,18 +275,12 @@ namespace newVcd
 
       m_filepath = fileName;
       m_size = std::filesystem::file_size(fileName);
-      m_fd = ::open(fileName.c_str(), O_RDONLY);
-      if (m_fd == -1)
-         throw std::runtime_error("open() failed for " + fileName.string());
+      m_data.resize(m_size);
 
-      m_dataPtr = static_cast<const char *>(
-          ::mmap(nullptr, m_size, PROT_READ, MAP_PRIVATE, m_fd, 0));
-      if (m_dataPtr == MAP_FAILED)
-      {
-         ::close(m_fd);
-         m_fd = -1;
-         throw std::runtime_error("mmap() failed for " + fileName.string());
-      }
+      std::fstream f(m_filepath.string());
+      f.read(m_data.data(), m_size);
+
+      m_data.erase(std::remove(m_data.begin(), m_data.end(), '\r'), m_data.end());
    }
 
    void
@@ -297,6 +290,19 @@ namespace newVcd
       for (const auto &[value, alias] : dumpVars)
       {
          m_alias2pin[alias]->SetInitState(value);
+      }
+   }
+
+   void Handle::LinkParent(std::shared_ptr<Module> parent, const std::vector<std::shared_ptr<Module>> &childs)
+   {
+      if (!parent)
+      {
+         return;
+      }
+      for (auto &&child : childs)
+      {
+         child->SetParent(parent);
+         LinkParent(child, child->subModules());
       }
    }
 
@@ -342,7 +348,10 @@ namespace newVcd
          {
             FillInitStates(ExtractDumpVars());
          }
-         /* до тайм‑штампов больше не дойдём */
+      }
+      if (m_root)
+      {
+         LinkParent(m_root, m_root->subModules());
       }
    }
 
@@ -384,9 +393,11 @@ namespace newVcd
       using clock = std::chrono::high_resolution_clock;
       auto t0 = clock::now();
 
-      const char *p = m_dataPtr + m_tsOffset;
-      const char *end = m_dataPtr + m_size;
+      const char *p = m_data.data() + m_tsOffset;
+      const char *end = m_data.data() + m_size;
       uint64_t curTs = 0;
+
+      uint64_t dumpoffBeginTs = 0;
 
       auto skip_ws = [&]()
       {
@@ -394,7 +405,7 @@ namespace newVcd
             ++p;
       };
 
-      std::cout << "---- begin waveform parse ----\n";
+      // std::cout << "---- begin waveform parse ----\n";
 
       while (p < end)
       {
@@ -410,8 +421,6 @@ namespace newVcd
             while (p < end && *p >= '0' && *p <= '9')
                ts = ts * 10 + (*p++ - '0');
             curTs = ts;
-            // timeStamps.insert(curTs);
-            // std::cout << "[#] ts=" << curTs << '\n';
             continue;
          }
 
@@ -425,21 +434,14 @@ namespace newVcd
                ++p;
             std::string_view bits(vBeg, p - vBeg);
 
-            skip_ws(); // → alias
+            skip_ws(); //  alias
             const char *aBeg = p;
             while (p < end && *p != ' ' && *p != '\t' &&
                    *p != '\r' && *p != '\n')
                ++p;
             std::string_view al(aBeg, p - aBeg);
 
-            // std::cout << "[b] ts=" << curTs
-            //           << "  alias='" << al
-            //           << "'  value=" << bits << '\n';
-            std::static_pointer_cast<MultiplePinDescription>(m_alias2pin[al])->m_values.push_back(PinValue{.timestamp = curTs, .value = bits});
-            // PinValue pv {bits, pinAlias2DescriptionMap[al]};
-            // timeStamp2ValueMap.emplace(curTs, std::move(pv));
-            // m_pin2UsedTimestamps[al].emplace(curTs);
-            // loadedSignals.insert(al);
+            std::static_pointer_cast<BusPinDescription>(m_alias2pin[al])->m_values.push_back(PinValue{.timestamp = curTs, .value = bits});
             continue;
          }
 
@@ -449,9 +451,16 @@ namespace newVcd
             const char *lineBeg = p;
             while (p < end && *p != '\n')
                ++p;
-            // std::cout.write("[$] skip: ", 9);
-            // std::cout.write(lineBeg, p - lineBeg);
-            // std::cout.put('\n');
+            std::string_view val(lineBeg + 1, p - lineBeg - 2); // skip $ from left and \r from right
+            if (val == "dumpoff")
+            {
+               dumpoffBeginTs = curTs;
+            }
+            else if (val == "dumpon")
+            {
+               m_dumpoffIntervals.emplace_back(std::make_pair(dumpoffBeginTs, curTs));
+            }
+
             continue;
          }
 
@@ -464,17 +473,13 @@ namespace newVcd
          std::string_view al(aBeg, p - aBeg);
 
          std::static_pointer_cast<SimplePinDescription>(m_alias2pin[al])->m_values.push_back(PinValue{.timestamp = curTs, .value = val});
-
-         // std::cout << "[1] ts=" << curTs
-         //           << "  alias='" << al
-         //           << "'  value=" << val << '\n';
       }
 
       m_maxTimestamp = curTs;
       auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                     clock::now() - t0)
                     .count();
-      std::cout << "[ensureSignalLoaded] loaded in " << ms << " ms\n";
+      // std::cout << "[ensureSignalLoaded] loaded in " << ms << " ms\n";
    }
 
    void
@@ -492,8 +497,8 @@ namespace newVcd
 
       /*------------- 2. вычисляем границы кусков ----------------*/
       std::vector<const char *> chunkBeg(nThreads + 1);
-      chunkBeg[0] = m_dataPtr + m_tsOffset;
-      const char *bodyEnd = m_dataPtr + m_size;
+      chunkBeg[0] = m_data.data() + m_tsOffset;
+      const char *bodyEnd = m_data.data() + m_size;
       std::size_t chunkSz = bodySize / nThreads;
 
       for (unsigned i = 1; i < nThreads; ++i)
@@ -512,6 +517,8 @@ namespace newVcd
                             std::vector<PinValue>>
              pinData;
          uint64_t maxTs = 0;
+
+         std::map<uint64_t, std::string> m_ranges;
       };
       std::vector<LocalBuf> locals(nThreads);
 
@@ -558,7 +565,7 @@ namespace newVcd
                   ++p;
                std::string_view bits(vBeg, p - vBeg);
 
-               skip_ws(); // → alias
+               skip_ws(); // alias
                const char *aBeg = p;
                while (p < e && *p != ' ' && *p != '\t' &&
                       *p != '\r' && *p != '\n')
@@ -572,8 +579,15 @@ namespace newVcd
             /*--- пропускаем $dumpXXX … $end --------------------*/
             if (*p == '$')
             {
+               const char *lineBeg = p;
                while (p < e && *p != '\n')
                   ++p;
+               std::string_view val(lineBeg + 1, p - lineBeg - 2); // skip $ from left and \r from right
+               if (val == "dumpoff" || val == "dumpon")
+               {
+                  L.m_ranges[curTs] = val;
+               }
+
                continue;
             }
 
@@ -598,6 +612,7 @@ namespace newVcd
 
       /*------------- 6. слияние в основной Handle --------------*/
       m_maxTimestamp = 0;
+      std::map<uint64_t, std::string> mergedRanges;
       for (auto &L : locals)
       {
          m_maxTimestamp = std::max(m_maxTimestamp, L.maxTs);
@@ -608,7 +623,7 @@ namespace newVcd
             if (pinIt == m_alias2pin.end())
                continue;
 
-            if (pinIt->second->sigType() == SigType::simple)
+            if (pinIt->second->GetSignalType() == SignalType::simple)
             {
                auto sp = std::static_pointer_cast<SimplePinDescription>(pinIt->second);
                auto &dst = sp->m_values;
@@ -618,12 +633,31 @@ namespace newVcd
             }
             else
             {
-               auto mp = std::static_pointer_cast<MultiplePinDescription>(pinIt->second);
+               auto mp = std::static_pointer_cast<BusPinDescription>(pinIt->second);
                auto &dst = mp->m_values;
                dst.insert(dst.end(),
                           std::make_move_iterator(vec.begin()),
                           std::make_move_iterator(vec.end()));
             }
+         }
+         mergedRanges.insert(L.m_ranges.begin(), L.m_ranges.end());
+      }
+
+      m_dumpoffIntervals.clear();
+      bool inside = false;
+      uint64_t beg = 0;
+
+      for (const auto &[ts, tag] : mergedRanges)
+      {
+         if (tag == "dumpoff" && !inside)
+         {
+            inside = true;
+            beg = ts;
+         }
+         else if (tag == "dumpon" && inside)
+         {
+            inside = false;
+            m_dumpoffIntervals.emplace_back(beg, ts);
          }
       }
 
@@ -631,16 +665,16 @@ namespace newVcd
             внутри потока, но не между потоками) */
       for (auto &pin : m_pins)
       {
-         if (pin->sigType() == SigType::simple)
+         if (pin->GetSignalType() == SignalType::simple)
          {
             auto sp = std::static_pointer_cast<SimplePinDescription>(pin);
             std::sort(sp->m_values.begin(), sp->m_values.end(),
                       [](auto &a, auto &b)
                       { return a.timestamp < b.timestamp; });
          }
-         else if (pin->sigType() == SigType::complex)
+         else if (pin->GetSignalType() == SignalType::bus)
          {
-            auto mp = std::static_pointer_cast<MultiplePinDescription>(pin);
+            auto mp = std::static_pointer_cast<BusPinDescription>(pin);
             std::sort(mp->m_values.begin(), mp->m_values.end(),
                       [](auto &a, auto &b)
                       { return a.timestamp < b.timestamp; });
@@ -650,15 +684,13 @@ namespace newVcd
       auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                     clock::now() - t0)
                     .count();
-      std::cout << "[LoadSignalsParallel] "
-                << nThreads << " threads, "
-                << m_pins.size() << " pins, "
-                << "done in " << ms << " ms\n";
+      // std::cout << "[LoadSignalsParallel] "
+      //           << nThreads << " threads, "
+      //           << m_pins.size() << " pins, "
+      //           << "done in " << ms << " ms\n";
    }
 
    Handle::~Handle()
    {
-      ::munmap(const_cast<char *>(m_dataPtr), m_size);
-      ::close(m_fd);
    }
-} // namespace newVcd
+} // namespace vcd

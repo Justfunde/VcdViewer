@@ -15,9 +15,9 @@
 
 struct EmmitedSignalDescription
 {
-   newVcd::PinDescriptionPtr pinDescription;
-   QString name;
-   QString value;
+  vcd::PinDescriptionPtr pinDescription;
+  QString name;
+  QString value;
 };
 
 /**
@@ -28,168 +28,166 @@ struct EmmitedSignalDescription
  */
 class SignalTreeModel : public QAbstractItemModel
 {
-   Q_OBJECT
+  Q_OBJECT
 
- public:
-   /**
-    * @brief Конструктор модели сигналов.
-    * @param parent Родительский QObject.
-    */
-   explicit SignalTreeModel(QObject* parent = nullptr);
+public:
+  /**
+   * @brief Конструктор модели сигналов.
+   * @param parent Родительский QObject.
+   */
+  explicit SignalTreeModel(QObject *parent = nullptr);
 
-   /**
-    * @brief Установить список сигналов для отображения.
-    * @param signalVector Вектор сигналов.
-    */
-   void
-   SetSignals(const std::vector<newVcd::PinDescriptionPtr>& signalVector);
+  /**
+   * @brief Установить список сигналов для отображения.
+   * @param signalVector Вектор сигналов.
+   */
+  void
+  SetSignals(const std::vector<vcd::PinDescriptionPtr> &signalVector);
 
-   /**
-    * @brief Получить описание сигнала (PinDescription) по индексу.
-    * @param index Индекс в модели.
-    * @return Указатель на PinDescription или nullptr.
-    */
-   newVcd::PinDescriptionPtr
-   GetPinDescriptionFromIndex(const QModelIndex& index) const;
+  /**
+   * @brief Получить описание сигнала (PinDescription) по индексу.
+   * @param index Индекс в модели.
+   * @return Указатель на PinDescription или nullptr.
+   */
+  vcd::PinDescriptionPtr
+  GetPinDescriptionFromIndex(const QModelIndex &index) const;
 
- signals:
-   /**
-    * @brief Сигнал, испускаемый при изменении списка сигналов.
-    * @param Список сигналов.
-    */
-   void SignalListChanged(std::vector<newVcd::PinDescriptionPtr>);
+signals:
+  /**
+   * @brief Сигнал, испускаемый при изменении списка сигналов.
+   * @param Список сигналов.
+   */
+  void SignalListChanged(std::vector<vcd::PinDescriptionPtr>);
 
-   void SignalsUpdated(QVector<EmmitedSignalDescription>);
+  void SignalsUpdated(QVector<EmmitedSignalDescription>);
 
- public slots:
-   /**
-    * @brief Обновить все данные в модели, перерисовав отображение.
-    * @param parent Родительский индекс, по умолчанию корневой.
-    */
-   void
-   UpdateAllData(const QModelIndex& parent = QModelIndex());
+public slots:
+  /**
+   * @brief Обновить все данные в модели, перерисовав отображение.
+   * @param parent Родительский индекс, по умолчанию корневой.
+   */
+  void
+  UpdateAllData(const QModelIndex &parent = QModelIndex());
 
-   /**
-    * @brief Установить выбранный временной срез.
-    * @param ts Временная метка.
-    */
-   void
-   SetSelectedTimestamp(uint64_t ts);
+  /**
+   * @brief Установить выбранный временной срез.
+   * @param ts Временная метка.
+   */
+  void
+  SetSelectedTimestamp(uint64_t ts);
 
-   /**
-    * @brief Добавить сигнал в список.
-    * @param sig Описание сигнала.
-    */
-   void
-   AppendSignal(newVcd::PinDescriptionPtr sig);
+  /**
+   * @brief Добавить сигнал в список.
+   * @param sig Описание сигнала.
+   */
+  void
+  AppendSignal(vcd::PinDescriptionPtr sig);
 
-   void
-   AppendSignals(const std::vector<newVcd::PinDescriptionPtr>& sigs);
+  void
+  AppendSignals(const std::vector<vcd::PinDescriptionPtr> &sigs);
 
-   void
-   ReplaceSignalsWithSelection(
-      QItemSelectionModel* selectionModel,
-      const std::vector<newVcd::PinDescriptionPtr>& newSignals);
+  void
+  ReplaceSignalsWithSelection(
+      QItemSelectionModel *selectionModel,
+      const std::vector<vcd::PinDescriptionPtr> &newSignals);
 
-   void
-   InsertSignals(
-      const std::vector<newVcd::PinDescriptionPtr>& sigs,
+  void
+  InsertSignals(
+      const std::vector<vcd::PinDescriptionPtr> &sigs,
       std::size_t pos);
 
-   /**
-    * @brief Удалить сигнал из списка по индексу.
-    * @param index Индекс сигнала для удаления.
-    */
-   void RemoveSignal(const QModelIndex& index);
+  /**
+   * @brief Удалить сигнал из списка по индексу.
+   * @param index Индекс сигнала для удаления.
+   */
+  void RemoveSignal(const QModelIndex &index);
 
-   void
-   RemoveSignals(const QModelIndexList& idxs);
+  void
+  RemoveSignals(const QModelIndexList &idxs);
 
-   /**
-    * @brief Установить новый VCD дескриптор и очистить список сигналов.
-    * @param VcdHandle Дескриптор VCD.
-    */
-   void
-   SetHandle(std::shared_ptr<newVcd::Handle> VcdHandle);
+  /**
+   * @brief Установить новый VCD дескриптор и очистить список сигналов.
+   * @param VcdHandle Дескриптор VCD.
+   */
+  void
+  SetHandle(std::shared_ptr<vcd::Handle> VcdHandle);
 
-   /**
-    * @brief Возвращает количество строк (дочерних элементов) для заданного индекса.
-    * @param parent Родительский индекс.
-    * @return Количество строк.
-    */
-   int
-   rowCount(const QModelIndex& parent = QModelIndex()) const override;
+  /**
+   * @brief Возвращает количество строк (дочерних элементов) для заданного индекса.
+   * @param parent Родительский индекс.
+   * @return Количество строк.
+   */
+  int rowCount(const QModelIndex &parent = QModelIndex()) const override;
 
-   /**
-    * @brief Возвращает количество столбцов (всегда 1).
-    * @param parent Родительский индекс.
-    * @return Количество столбцов.
-    */
-   int
-   columnCount(const QModelIndex& parent = QModelIndex()) const override;
+  /**
+   * @brief Возвращает количество столбцов (всегда 1).
+   * @param parent Родительский индекс.
+   * @return Количество столбцов.
+   */
+  int columnCount(const QModelIndex &parent = QModelIndex()) const override;
 
-   /**
-    * @brief Возвращает данные для отображения в представлении.
-    * @param index Индекс модели.
-    * @param role Роль данных (по умолчанию Qt::DisplayRole).
-    * @return Данные для отображения.
-    */
-   QVariant
-   data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
+  /**
+   * @brief Возвращает данные для отображения в представлении.
+   * @param index Индекс модели.
+   * @param role Роль данных (по умолчанию Qt::DisplayRole).
+   * @return Данные для отображения.
+   */
+  QVariant
+  data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
 
-   /**
-    * @brief Возвращает данные заголовка модели.
-    * @param section Номер столбца.
-    * @param orientation Ориентация (горизонтальная/вертикальная).
-    * @param role Роль данных.
-    * @return Данные заголовка.
-    */
-   QVariant
-   headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
+  /**
+   * @brief Возвращает данные заголовка модели.
+   * @param section Номер столбца.
+   * @param orientation Ориентация (горизонтальная/вертикальная).
+   * @param role Роль данных.
+   * @return Данные заголовка.
+   */
+  QVariant
+  headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
 
-   /**
-    * @brief Возвращает индекс по строке, столбцу и родительскому индексу.
-    * @param row Номер строки.
-    * @param column Номер столбца.
-    * @param parent Родительский индекс.
-    * @return Индекс модели.
-    */
-   QModelIndex
-   index(int row, int column, const QModelIndex& parent = QModelIndex()) const override;
+  /**
+   * @brief Возвращает индекс по строке, столбцу и родительскому индексу.
+   * @param row Номер строки.
+   * @param column Номер столбца.
+   * @param parent Родительский индекс.
+   * @return Индекс модели.
+   */
+  QModelIndex
+  index(int row, int column, const QModelIndex &parent = QModelIndex()) const override;
 
-   /**
-    * @brief Возвращает родительский индекс для данного индекса.
-    * @param index Индекс модели.
-    * @return Родительский индекс.
-    */
-   QModelIndex
-   parent(const QModelIndex& index) const override;
+  /**
+   * @brief Возвращает родительский индекс для данного индекса.
+   * @param index Индекс модели.
+   * @return Родительский индекс.
+   */
+  QModelIndex
+  parent(const QModelIndex &index) const override;
 
- private:
-   /**
-    * @brief Получить ближайший доступный временной штамп, не превышающий заданный.
-    * @param value Запрашиваемый временной штамп.
-    * @return Выбранный временной штамп из набора доступных.
-    */
-   uint64_t
-   GetSelectedTimestamp(uint64_t value) const;
+private:
+  /**
+   * @brief Получить ближайший доступный временной штамп, не превышающий заданный.
+   * @param value Запрашиваемый временной штамп.
+   * @return Выбранный временной штамп из набора доступных.
+   */
+  uint64_t
+  GetSelectedTimestamp(uint64_t value) const;
 
-   /**
-    * @brief Получить значение сигнала на определённом временном штампе.
-    * @param pin Описание сигнала.
-    * @param index Индекс модели.
-    * @param timestamp Временной штамп.
-    * @return Значение сигнала или пустой std::optional, если значение недоступно.
-    */
-   std::optional<QString>
-   GetPinValueAtTimestamp(newVcd::PinDescriptionPtr pin, const QModelIndex& index, uint64_t timestamp) const;
+  /**
+   * @brief Получить значение сигнала на определённом временном штампе.
+   * @param pin Описание сигнала.
+   * @param index Индекс модели.
+   * @param timestamp Временной штамп.
+   * @return Значение сигнала или пустой std::optional, если значение недоступно.
+   */
+  std::optional<QString>
+  GetPinValueAtTimestamp(vcd::PinDescriptionPtr pin, const QModelIndex &index, uint64_t timestamp) const;
 
-   void
-   emitSignalsAndValues();
+  void
+  emitSignalsAndValues();
 
-   std::vector<newVcd::PinDescriptionPtr> m_signals; ///< Список отображаемых сигналов.
-   std::optional<uint64_t> m_timestamp;              ///< Текущий выбранный временной штамп.
-   std::shared_ptr<newVcd::Handle> m_handle;         ///< Дескриптор VCD.
+  std::vector<vcd::PinDescriptionPtr> m_signals; ///< Список отображаемых сигналов.
+  std::optional<uint64_t> m_timestamp;           ///< Текущий выбранный временной штамп.
+  std::shared_ptr<vcd::Handle> m_handle;         ///< Дескриптор VCD.
 };
 
 /**
@@ -197,25 +195,25 @@ class SignalTreeModel : public QAbstractItemModel
  */
 class FixedHeightDelegate : public QStyledItemDelegate
 {
- public:
-   /**
-    * @brief Конструктор делегата с фиксированной высотой.
-    * @param fixedHeight Фиксированная высота для строк.
-    * @param parent Родительский объект.
-    */
-   explicit FixedHeightDelegate(int fixedHeight, QObject* parent = nullptr);
+public:
+  /**
+   * @brief Конструктор делегата с фиксированной высотой.
+   * @param fixedHeight Фиксированная высота для строк.
+   * @param parent Родительский объект.
+   */
+  explicit FixedHeightDelegate(int fixedHeight, QObject *parent = nullptr);
 
-   /**
-    * @brief Возвращает рекомендуемый размер элемента с учётом фиксированной высоты.
-    * @param option Опции стиля.
-    * @param index Индекс модели.
-    * @return Размер элемента.
-    */
-   QSize
-   sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override;
+  /**
+   * @brief Возвращает рекомендуемый размер элемента с учётом фиксированной высоты.
+   * @param option Опции стиля.
+   * @param index Индекс модели.
+   * @return Размер элемента.
+   */
+  QSize
+  sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override;
 
- private:
-   int m_fixedHeight; ///< Фиксированная высота строки.
+private:
+  int m_fixedHeight; ///< Фиксированная высота строки.
 };
 
 /**
@@ -226,59 +224,59 @@ class FixedHeightDelegate : public QStyledItemDelegate
  */
 class SignalTreeView : public QTreeView
 {
-   Q_OBJECT
+  Q_OBJECT
 
- public:
-   /**
-    * @brief Конструктор представления.
-    * @param parent Родительский QWidget.
-    */
-   explicit SignalTreeView(QWidget* parent = nullptr);
+public:
+  /**
+   * @brief Конструктор представления.
+   * @param parent Родительский QWidget.
+   */
+  explicit SignalTreeView(QWidget *parent = nullptr);
 
-   /**
-    * @brief Получить вертикальный скроллбар представления.
-    * @return Указатель на QScrollBar.
-    */
-   QScrollBar*
-   GetVerticalScrollBar() const;
+  /**
+   * @brief Получить вертикальный скроллбар представления.
+   * @return Указатель на QScrollBar.
+   */
+  QScrollBar *
+  GetVerticalScrollBar() const;
 
- signals:
-   /**
-    * @brief Сигнал, испускаемый при разворачивании или сворачивании элемента.
-    * @param pin Указатель на сигнал.
-    * @param isExpanded Флаг, указывающий на состояние (развернут или свернут).
-    */
-   void itemExpandedOrCollapsed(newVcd::PinDescriptionPtr pin, bool isExpanded);
+signals:
+  /**
+   * @brief Сигнал, испускаемый при разворачивании или сворачивании элемента.
+   * @param pin Указатель на сигнал.
+   * @param isExpanded Флаг, указывающий на состояние (развернут или свернут).
+   */
+  void itemExpandedOrCollapsed(vcd::PinDescriptionPtr pin, bool isExpanded);
 
- protected:
-   /**
-    * @brief Обработчик нажатия клавиш.
-    *
-    * Нажатие клавиши Delete удаляет выбранный сигнал.
-    * @param event Событие нажатия клавиши.
-    */
-   void
-   keyPressEvent(QKeyEvent* event) override;
- private slots:
-   void
-   onItemExpanded(const QModelIndex& index);
+protected:
+  /**
+   * @brief Обработчик нажатия клавиш.
+   *
+   * Нажатие клавиши Delete удаляет выбранный сигнал.
+   * @param event Событие нажатия клавиши.
+   */
+  void
+  keyPressEvent(QKeyEvent *event) override;
+private slots:
+  void
+  onItemExpanded(const QModelIndex &index);
 
-   void
-   onItemCollapsed(const QModelIndex& index);
+  void
+  onItemCollapsed(const QModelIndex &index);
 
-   void
-   OnCustomMenuRequested(const QPoint& pos);
+  void
+  OnCustomMenuRequested(const QPoint &pos);
 
- private:
-   /**
-    * @brief Вспомогательный метод для генерации сигнала о раскрытии/свёртывании.
-    * @param index Индекс элемента.
-    * @param isExpanded Флаг раскрытия.
-    */
-   void
-   emitPinDescriptionSignal(const QModelIndex& index, bool isExpanded);
+private:
+  /**
+   * @brief Вспомогательный метод для генерации сигнала о раскрытии/свёртывании.
+   * @param index Индекс элемента.
+   * @param isExpanded Флаг раскрытия.
+   */
+  void
+  emitPinDescriptionSignal(const QModelIndex &index, bool isExpanded);
 
- private:
+private:
 };
 
-Q_DECLARE_METATYPE(std::vector<newVcd::PinDescriptionPtr>)
+Q_DECLARE_METATYPE(std::vector<vcd::PinDescriptionPtr>)

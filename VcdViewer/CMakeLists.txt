@@ -7,20 +7,23 @@ set(CMAKE_AUTORCC ON)
 set(SOURCES_FILES
 SnapScrollBar.hpp
    VcdAsyncReader.hpp
+   VcdAsyncReader.cpp
    TreeModulesModel.hpp
    PinTableModel.hpp
    SignalsTreeModel.hpp
    SignalsTreeModel.cpp
-   Waveform.hpp
-   Waveform.cpp
+   WaveformView.hpp
+   WaveformView.cpp
    VcdViewerWidget.hpp
+   VcdViewerWidget.cpp
    TreeModulesModel.cpp
    MainWindow.hpp
    MainWindow.cpp
    WaveformItem/ParamWave.cpp
    WaveformItem/SimpleWave.cpp
-   WaveformItem/MultipleWaveItem.cpp
+   WaveformItem/BusWaveItem.cpp
    WaveformItem/WaveItems.hpp
+   WaveformItem/Dumpoff.cpp
    main.cpp)
 
 source_group("Sources Files" FILES ${SOURCES_FILES})

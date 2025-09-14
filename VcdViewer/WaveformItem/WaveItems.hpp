@@ -15,8 +15,8 @@ class SimpleWaveItem final : public QObject, public QGraphicsItem
 {
    Q_OBJECT
 public:
-   SimpleWaveItem(const std::shared_ptr<newVcd::Handle> &h,
-                  std::shared_ptr<newVcd::SimplePinDescription> p,
+   SimpleWaveItem(const std::shared_ptr<vcd::Handle> &h,
+                  std::shared_ptr<vcd::SimplePinDescription> p,
                   int yOffset,
                   std::optional<std::size_t> idx = std::nullopt,
                   QGraphicsItem *parent = nullptr);
@@ -30,55 +30,22 @@ public:
          QWidget *) override;
 
 private:
-   std::shared_ptr<newVcd::Handle> handle;
-   std::shared_ptr<newVcd::SimplePinDescription> pin;
-   QPainterPath precalcedPath;
-
-   std::optional<std::size_t> idx;
-
-   std::vector<QPainterPath> precalcedZPath;
-   std::vector<QRect> precalcedXRectangles;
-
-   struct LineSeg
-   {
-      quint64 leftTs;  // начало сегмента
-      quint64 rightTs; // конец   ( > leftTs )
-      char value;      // '0' | '1' | 'z' | 'x'
-   };
-
-private:
-   void buildSegments();          // вместо precalcFullPath
-   void renderVisible(QPainter *, // код в paint()
-                      const QStyleOptionGraphicsItem *);
-
-   struct ColBucket
-   {
-      bool has0 = false, has1 = false, hasZ = false;
-   };
-   mutable quint64 cacheL_ = 0, cacheR_ = 0, cacheTPP_ = 0;
-   mutable std::vector<ColBucket> bucketVec_;
-   void rebuildBuckets(quint64 visL, quint64 visR, quint64 ticksPerPx) const;
-
-   std::vector<LineSeg> segs_; // основная 0/1/z/x
-   std::vector<QRect> xRects_; // для 'x'
-
    // строит полный путь для всей последовательности
    void
-   precalcFullPath();
+   PrecalcFullPath();
 
    QString
    GetPinValueAtTimestamp(
        std::size_t index, uint64_t timestamp);
 
-   // бинарный поиск t, чтобы path.pointAtPercent(t).x() ≈ xTarget
-   static qreal
-   findT(const QPainterPath &path, qreal xTarget, int iters = 30);
+private:
+   std::shared_ptr<vcd::Handle> m_handle;
+   std::shared_ptr<vcd::SimplePinDescription> m_pin;
+   std::optional<std::size_t> m_idx;
 
-   // вырезает из path кусок между x0 и x1 (аппроксимация полилинией с sampleSteps точками)
-   static QPainterPath
-   subPathByX(const QPainterPath &path,
-              qreal x0, qreal x1,
-              int sampleSteps = 50);
+   QPainterPath m_precalcedPath;
+   std::vector<QPainterPath> m_precalcedZPath;
+   std::vector<QRect> m_precalcedXRectangles;
 };
 
 class ParamWaveItem final : public QObject, public QGraphicsItem
@@ -86,8 +53,8 @@ class ParamWaveItem final : public QObject, public QGraphicsItem
    Q_OBJECT
 public:
    ParamWaveItem(
-       const std::shared_ptr<newVcd::Handle> &h,
-       std::shared_ptr<newVcd::ParamPinDescription> p,
+       const std::shared_ptr<vcd::Handle> &h,
+       std::shared_ptr<vcd::ParamPinDescription> p,
        int yOffset,
        QGraphicsItem *parent = nullptr);
 
@@ -101,70 +68,97 @@ public:
    boundingRect() const override;
 
 private:
-   std::shared_ptr<newVcd::Handle> handle;
-   std::shared_ptr<newVcd::ParamPinDescription> pin;
-   QGraphicsSimpleTextItem *label = nullptr;
+   std::shared_ptr<vcd::Handle> m_handle;
+   std::shared_ptr<vcd::ParamPinDescription> m_pin;
+   QGraphicsSimpleTextItem *m_label = nullptr;
 };
 
 class MultipleWaveItem final : public QObject, public QGraphicsItem
 {
    Q_OBJECT
 public:
-   MultipleWaveItem(
-       const std::shared_ptr<newVcd::Handle> &h,
-       std::shared_ptr<newVcd::MultiplePinDescription> p,
-       int yOffset,
-       QGraphicsItem *parent = nullptr);
+   MultipleWaveItem(const std::shared_ptr<vcd::Handle> &h,
+                    std::shared_ptr<vcd::BusPinDescription> p,
+                    int yOffset,
+                    double scale,
+                    QGraphicsItem *parent = nullptr);
 
-   void
-   paint(
-       QPainter *p,
-       const QStyleOptionGraphicsItem *opt,
-       QWidget *) override;
-
-   QRectF
-   boundingRect() const override;
+   /* ───────────── QGraphicsItem ───────────── */
+   QRectF boundingRect() const override;
+   void paint(QPainter *,
+              const QStyleOptionGraphicsItem *,
+              QWidget *) override;
 
 public slots:
-   void
-   SetScaleCoeff(double newCoeff)
+   void SetScaleCoeff(double k)
    {
-      scaleCoeff = newCoeff;
+      m_scaleCoeff = k;
+      PreparePaths(); // перестраиваем с новым xStep
+      update();       // запрос перерисовки
    }
-
-   void
-   SetExpanded(bool isExpanded);
+   void SetExpanded(bool on);
 
 private:
-   void
-   PreparePaths();
+   /* ───────────── helpers ───────────── */
+   void PreparePaths();
+   void PrepareSubItems(); // создаёт SimpleWaveItem’ы для каждого бита
 
-   QString
-   StateAt(
-       uint64_t ts);
+   /** классифицирует строку шины:
+       'd' = данные, 'z' = z-состояние, 'x' = неопред. */
+   static char classifyBus(const std::string_view &v);
 
-   // void
-   // AddPoly(
-   //    QPainterPath
-   //)
+private:
+   std::shared_ptr<vcd::Handle> m_handle;
+   std::shared_ptr<vcd::BusPinDescription> m_pin;
 
-   void
-   PrepareSubItems();
+   /* предварительно рассчитанные пути --------------- */
+   QPainterPath m_pathDataUpper, m_pathDataLower; // «нормальные» значения
+   QPainterPath m_pathXUpper, m_pathXLower;       // «х»-состояния
+   QPainterPath m_pathZ;                          // «z»
 
-   std::shared_ptr<newVcd::Handle> handle;
-   newVcd::PinDescriptionPtr pin;
+   /* подпути-подпины */
+   std::vector<SimpleWaveItem *> m_;
 
-   std::pair<QPainterPath, QPainterPath> precalcedLines;
+   /* misc */
+   double m_scaleCoeff = 1.0;
+   bool m_isExpanded = false;
+   bool m_prepared = false;
 
-   std::vector<QPainterPath> precalcedZPath;
-   std::vector<QRect> precalcedXRectangles;
-   std::vector<QGraphicsSimpleTextItem *> textItems;
+   struct BusLabel
+   {
+      uint64_t x0;  // левая граница ромба   (xStep уже «съеден»)
+      uint64_t x1;  // правая граница ромба
+      QString text; // готовая строка для вывода
+   };
 
-   double scaleCoeff = 1;
+   std::vector<BusLabel> m_labels; // + объявление в private-секции
+};
 
-   bool isExpanded = false;
-   double prepared = false;
-   std::vector<SimpleWaveItem *> subWaveItems;
+class DumpoffItem final : public QGraphicsItem
+{
+public:
+   DumpoffItem(const std::vector<std::pair<uint64_t, uint64_t>> ranges,
+               const std::shared_ptr<vcd::Handle> &h,
+               QGraphicsItem *parent = nullptr)
+       : QGraphicsItem(parent), m_ranges(ranges), m_handle(h)
+   {
+   }
+
+   QRectF boundingRect() const override;
+   /* ───────────── QGraphicsItem ───────────── */
+   void paint(QPainter *,
+              const QStyleOptionGraphicsItem *,
+              QWidget *) override;
+
+   void setHeight(qreal height)
+   {
+      this->m_height = height;
+   }
+
+private:
+   std::vector<std::pair<uint64_t, uint64_t>> m_ranges;
+   std::shared_ptr<vcd::Handle> m_handle;
+   qreal m_height = 0;
 };
 
 #endif //!__WAVE_ITEMS_HPP__

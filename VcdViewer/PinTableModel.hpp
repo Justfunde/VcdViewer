@@ -13,17 +13,17 @@ class PinTableModel : public QAbstractTableModel
 {
    Q_OBJECT
 
- public:
+public:
    /**
     * @brief Конструктор модели.
     * @param parent Родительский объект.
     */
-   explicit PinTableModel(QObject* parent = nullptr)
-      : QAbstractTableModel(parent)
+   explicit PinTableModel(QObject *parent = nullptr)
+       : QAbstractTableModel(parent)
    {
    }
 
- public slots:
+public slots:
 
    void
    Reset()
@@ -39,7 +39,7 @@ class PinTableModel : public QAbstractTableModel
     * @param module Указатель на модуль.
     */
    void
-   SetModule(std::shared_ptr<newVcd::Module> module)
+   SetModule(std::shared_ptr<vcd::Module> module)
    {
       emit beginResetModel();
       m_module = module;
@@ -51,7 +51,7 @@ class PinTableModel : public QAbstractTableModel
     * @param VcdHandle Новый дескриптор VCD.
     */
    void
-   SetHandle(std::shared_ptr<newVcd::Handle> VcdHandle)
+   SetHandle(std::shared_ptr<vcd::Handle> VcdHandle)
    {
       emit beginResetModel();
       m_handle = VcdHandle;
@@ -65,7 +65,7 @@ class PinTableModel : public QAbstractTableModel
     * @return Количество сигналов или 0, если модуль не установлен.
     */
    int
-   rowCount(const QModelIndex& parent = QModelIndex()) const override
+   rowCount(const QModelIndex &parent = QModelIndex()) const override
    {
       if (parent.isValid() || !m_module)
       {
@@ -80,7 +80,7 @@ class PinTableModel : public QAbstractTableModel
     * @return Количество столбцов (2: для типа и для имени сигнала).
     */
    int
-   columnCount(const QModelIndex& parent = QModelIndex()) const override
+   columnCount(const QModelIndex &parent = QModelIndex()) const override
    {
       Q_UNUSED(parent);
       return 2;
@@ -93,7 +93,7 @@ class PinTableModel : public QAbstractTableModel
     * @return Данные для отображения (тип сигнала в колонке 0, имя сигнала в колонке 1).
     */
    QVariant
-   data(const QModelIndex& index, int role = Qt::DisplayRole) const override
+   data(const QModelIndex &index, int role = Qt::DisplayRole) const override
    {
       if (!index.isValid() || !m_module || role != Qt::DisplayRole)
       {
@@ -104,14 +104,14 @@ class PinTableModel : public QAbstractTableModel
 
       if (index.column() == 0)
       {
-         return QString::fromStdString(pinTypeToString(pin->pinType()));
+         return QString::fromStdString(pinTypeToString(pin->GetPinType()));
       }
       else if (index.column() == 1)
       {
-         std::string resultName = std::string(pin->name());
-         if (pin->sigType() == newVcd::SigType::complex)
+         std::string resultName = std::string(pin->GetName());
+         if (pin->GetSignalType() == vcd::SignalType::bus)
          {
-            const auto& bitDepth = std::static_pointer_cast<newVcd::MultiplePinDescription>(pin)->bitDepth();
+            const auto &bitDepth = std::static_pointer_cast<vcd::BusPinDescription>(pin)->GetBitDepth();
             resultName += "[" + std::to_string(bitDepth.first) + ":" + std::to_string(bitDepth.second) + "]";
          }
          return QString::fromStdString(resultName);
@@ -144,7 +144,7 @@ class PinTableModel : public QAbstractTableModel
       return QVariant();
    }
 
-   newVcd::PinDescriptionPtr
+   vcd::PinDescriptionPtr
    At(std::size_t idx)
    {
       if (idx >= m_module->GetPins().size())
@@ -154,7 +154,7 @@ class PinTableModel : public QAbstractTableModel
       return m_module->GetPins().at(idx);
    }
 
- public slots:
+public slots:
    /**
     * @brief Слот, вызываемый при клике по элементу таблицы.
     * @param index Индекс модели, по которому кликнуsли.
@@ -162,7 +162,7 @@ class PinTableModel : public QAbstractTableModel
     * Извлекает соответствующий сигнал и эмитирует сигнал PinClicked.
     */
    void
-   OnItemClicked(const QModelIndex& index)
+   OnItemClicked(const QModelIndex &index)
    {
       if (index.isValid())
       {
@@ -170,39 +170,39 @@ class PinTableModel : public QAbstractTableModel
       }
    }
 
- signals:
+signals:
    /**
     * @brief Сигнал, испускаемый при клике на конкретный сигнал.
     * @param module Указатель на выбранный сигнал (PinDescriptionPtr).
     */
-   void PinClicked(newVcd::PinDescriptionPtr module);
+   void PinClicked(vcd::PinDescriptionPtr module);
 
- private:
+private:
    /**
-    * @brief Преобразование типа сигнала newVcd::PinType в строку.
+    * @brief Преобразование типа сигнала vcd::PinType в строку.
     * @param type Тип пина.
     * @return Строковое представление типа сигнала.
     */
    std::string
-   pinTypeToString(newVcd::PinType type) const
+   pinTypeToString(vcd::PinType type) const
    {
       switch (type)
       {
-      case newVcd::PinType::wire:
+      case vcd::PinType::wire:
          return "wire";
-      case newVcd::PinType::reg:
+      case vcd::PinType::reg:
          return "reg";
-      case newVcd::PinType::parameter:
+      case vcd::PinType::parameter:
          return "parm";
       default:
          return "UNKNOWN";
       }
    }
 
-   std::shared_ptr<newVcd::Module> m_module; ///< Текущий отображаемый модуль.
-   std::shared_ptr<newVcd::Handle> m_handle; ///< Текущий дескриптор VCD.
+   std::shared_ptr<vcd::Module> m_module; ///< Текущий отображаемый модуль.
+   std::shared_ptr<vcd::Handle> m_handle; ///< Текущий дескриптор VCD.
 };
 
-Q_DECLARE_METATYPE(newVcd::PinDescriptionPtr)
+Q_DECLARE_METATYPE(vcd::PinDescriptionPtr)
 
 #endif //!__TABLE_SIGNALS_VIEW_HPP__

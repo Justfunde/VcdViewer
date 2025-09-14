@@ -1,57 +1,54 @@
-#ifndef __VCD_ASYNC_READER_HPP__
-#define __VCD_ASYNC_READER_HPP__
+#pragma once
+/*****************************************************************************
+ *  VcdAsyncFileReader
+ *  ------------------
+ *  Асинхронный загрузчик VCD-файла, выполняющий тяжёлый разбор в пуле потоков
+ *  и отправляющий готовый `std::shared_ptr<vcd::Handle>` обратно в
+ *  GUI-поток через сигнал Qt.
+ *****************************************************************************/
 
 #include <QObject>
 #include <QString>
-#include <QtConcurrent>
-#include <exception>
-#include <filesystem>
-#include <iostream>
 #include <memory>
 
-#include "Include/VcdStructs.hpp"
+#include "Include/VcdStructs.hpp" // объявление vcd::Handle
 
-class VcdAsyncFileReader : public QObject
+/**
+ * @brief Асинхронно читает VCD-файл и уведомляет о результате.
+ *
+ * Пример использования:
+ * @code
+ * auto reader = new VcdAsyncFileReader(this);
+ * connect(reader, &VcdAsyncFileReader::ReadFileReady,
+ *         this,   &MyWidget::onHandleReady);
+ * QMetaObject::invokeMethod(reader, "ReadFile",
+ *         Qt::QueuedConnection, Q_ARG(QString, "/path/to/file.vcd"));
+ * @endcode
+ */
+class VcdAsyncFileReader final : public QObject
 {
    Q_OBJECT
+public:
+   explicit VcdAsyncFileReader(QObject *parent = nullptr);
 
- public:
-   explicit VcdAsyncFileReader(QObject* Parent = nullptr)
-      : QObject(Parent)
-   {
-   }
+public slots:
+   /**
+    * @brief Запускает парсинг указанного VCD-файла.
+    * @param vcdFilePath Путь к *.vcd.
+    *
+    * Генерирует:
+    *  * ReadFileReady(shared_ptr<Handle>) — если успех;
+    *  * ReadFileError(QString)            — если ошибка.
+    */
+   void ReadFile(const QString &vcdFilePath);
 
- signals:
-   void ReadFileReady(std::shared_ptr<newVcd::Handle>);
-   void ReadFileError(QString);
+signals:
+   /// Файл успешно прочитан, `handle` готов к работе.
+   void ReadFileReady(std::shared_ptr<vcd::Handle> handle);
 
- public slots:
-   void
-   ReadFile(QString VcdFilePath)
-   {
-      std::filesystem::path filePath = VcdFilePath.toStdString();
-
-      if (!std::filesystem::exists(filePath))
-      {
-         emit ReadFileError("Файл не существует");
-         return;
-      }
-
-      try
-      {
-         auto handle = std::make_shared<newVcd::Handle>();
-         handle->Init(filePath);
-         handle->LoadHdr();
-         emit ReadFileReady(handle);
-      }
-      catch (const std::exception& ex)
-      {
-         std::cerr << ex.what();
-         emit ReadFileError(QString::fromStdString(ex.what()));
-      }
-   }
+   /// Произошла ошибка; текст содержит описание.
+   void ReadFileError(QString description);
 };
 
-Q_DECLARE_METATYPE(std::shared_ptr<newVcd::Handle>)
-
-#endif // __VCD_ASYNC_READER_HPP__
+// Регистрируем тип для queued-сигналов.
+Q_DECLARE_METATYPE(std::shared_ptr<vcd::Handle>)

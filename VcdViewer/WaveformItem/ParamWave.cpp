@@ -1,22 +1,20 @@
 
 #include "WaveItems.hpp"
 
-ParamWaveItem::ParamWaveItem(const std::shared_ptr<newVcd::Handle>& h,
-                             std::shared_ptr<newVcd::ParamPinDescription> p,
+ParamWaveItem::ParamWaveItem(const std::shared_ptr<vcd::Handle> &h,
+                             std::shared_ptr<vcd::ParamPinDescription> p,
                              int yOffset,
-                             QGraphicsItem* parent)
-   : QGraphicsItem(parent)
-   , handle(h)
-   , pin(p)
+                             QGraphicsItem *parent)
+    : QGraphicsItem(parent), m_handle(h), m_pin(p)
 {
    setPos(0, yOffset);
    // setCacheMode(DeviceCoordinateCache);
-   label = new QGraphicsSimpleTextItem(this); // дочерний объект
-   label->setFlag(QGraphicsItem::ItemIgnoresTransformations);
-   label->setBrush(Qt::white);
+   m_label = new QGraphicsSimpleTextItem(this); // дочерний объект
+   m_label->setFlag(QGraphicsItem::ItemIgnoresTransformations);
+   m_label->setBrush(Qt::white);
    QFont f("Monospace");
    f.setPixelSize(15);
-   label->setFont(f);
+   m_label->setFont(f);
 }
 
 QRectF
@@ -24,18 +22,17 @@ ParamWaveItem::boundingRect() const
 {
    return {0.0,
            0.0,
-           qreal(handle->maxTs()),
+           qreal(m_handle->GetMaxTs()),
            qreal(WAVEFORM_HEIGHT)};
 }
 
-void
-ParamWaveItem::paint(QPainter* p,
-                     const QStyleOptionGraphicsItem* opt,
-                     QWidget*)
+void ParamWaveItem::paint(QPainter *p,
+                          const QStyleOptionGraphicsItem *opt,
+                          QWidget *)
 {
    /* ---------- обычная отрисовка волны ------------- */
    const qreal x0 = qMax<qreal>(0, opt->exposedRect.left());
-   const qreal x1 = qMin<qreal>(handle->maxTs(),
+   const qreal x1 = qMin<qreal>(m_handle->GetMaxTs(),
                                 opt->exposedRect.right());
 
    const int yPos = SPACING;
@@ -48,8 +45,8 @@ ParamWaveItem::paint(QPainter* p,
    p->drawLine(x0, yNeg, x1, yNeg);
 
    /* ---------- текстовая подпись ------------------- */
-   QString txt = QString::number(std::stoi(pin->initState(), 0, 2), 16)
-                    .toUpper();
+   QString txt = QString::number(std::stoi(m_pin->GetInitState(), 0, 2), 16)
+                     .toUpper();
 
    /*   запоминаем ТМ и переводим сцену → экран, чтобы узнать Y-коорд.  */
    p->save();

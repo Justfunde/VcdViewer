@@ -6,10 +6,10 @@
 class SnapScrollBar : public QScrollBar
 {
    Q_OBJECT
- public:
+public:
    explicit SnapScrollBar(Qt::Orientation o,
-                          QWidget* parent = nullptr)
-      : QScrollBar(o, parent)
+                          QWidget *parent = nullptr)
+       : QScrollBar(o, parent)
    {
    }
 
@@ -20,10 +20,10 @@ class SnapScrollBar : public QScrollBar
       setSingleStep(s);
    }
 
- signals:
+signals:
    void snapped(int); // значение ПОСЛЕ «прилипания»
 
- protected:
+protected:
    void
    sliderChange(SliderChange change) override
    {
@@ -31,23 +31,23 @@ class SnapScrollBar : public QScrollBar
       {
          int raw = value();
          int snappedVal =
-            ((raw + m_step / 2) / m_step) * m_step;
+             ((raw + m_step / 2) / m_step) * m_step;
 
          if (snappedVal != raw)
          {
             /* блокируем ТОЛЬКО собственные сигналы,
-               чтобы наружу не шёл «сырой» raw */
+               чтобы наружу не шёл  raw */
             QSignalBlocker guard(this);
             QScrollBar::setValue(snappedVal);
          }
 
-         emit snapped(snappedVal); // наружу уходит ТОЛЬКО «красивое»
-         return;                   // базу уже вызвал setValue()
+         emit snapped(snappedVal);
+         return;
       }
 
       QScrollBar::sliderChange(change);
    }
 
- private:
+private:
    int m_step = 0;
 };

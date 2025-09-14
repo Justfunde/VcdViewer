@@ -2,26 +2,26 @@
 #include <QDebug>
 #include <QModelIndex>
 #include <QVariant>
+#include <iostream>
 
 /**************************************
  *          SignalTreeModel
  **************************************/
 
-SignalTreeModel::SignalTreeModel(QObject* parent)
-   : QAbstractItemModel(parent)
+SignalTreeModel::SignalTreeModel(QObject *parent)
+    : QAbstractItemModel(parent)
 {
 }
 
-void
-SignalTreeModel::SetSignals(const std::vector<newVcd::PinDescriptionPtr>& signalVector)
+void SignalTreeModel::SetSignals(const std::vector<vcd::PinDescriptionPtr> &signalVector)
 {
    beginResetModel();
    m_signals = signalVector;
    endResetModel();
 }
 
-newVcd::PinDescriptionPtr
-SignalTreeModel::GetPinDescriptionFromIndex(const QModelIndex& index) const
+vcd::PinDescriptionPtr
+SignalTreeModel::GetPinDescriptionFromIndex(const QModelIndex &index) const
 {
    if (!index.isValid())
       return nullptr;
@@ -46,8 +46,7 @@ SignalTreeModel::GetPinDescriptionFromIndex(const QModelIndex& index) const
    return nullptr;
 }
 
-void
-SignalTreeModel::UpdateAllData(const QModelIndex& parent)
+void SignalTreeModel::UpdateAllData(const QModelIndex &parent)
 {
    int rows = rowCount(parent);
    int columns = columnCount(parent);
@@ -70,8 +69,7 @@ SignalTreeModel::UpdateAllData(const QModelIndex& parent)
    }
 }
 
-void
-SignalTreeModel::emitSignalsAndValues()
+void SignalTreeModel::emitSignalsAndValues()
 {
    QVector<EmmitedSignalDescription> result;
    if (!m_timestamp.has_value())
@@ -81,7 +79,7 @@ SignalTreeModel::emitSignalsAndValues()
    }
 
    // Лямбда-функция для рекурсивного обхода
-   std::function<void(const QModelIndex&)> traverse = [&](const QModelIndex& parentIndex)
+   std::function<void(const QModelIndex &)> traverse = [&, this](const QModelIndex &parentIndex)
    {
       int rows = this->rowCount(parentIndex);
       int cols = this->columnCount(parentIndex);
@@ -109,7 +107,6 @@ SignalTreeModel::emitSignalsAndValues()
 
                result.append({GetPinDescriptionFromIndex(idx), before, after});
             }
-            qWarning() << text;
 
             // Рекурсивно обходим детей
             if (this->hasChildren(idx))
@@ -125,19 +122,17 @@ SignalTreeModel::emitSignalsAndValues()
    emit SignalsUpdated(result);
 }
 
-void
-SignalTreeModel::SetSelectedTimestamp(uint64_t ts)
+void SignalTreeModel::SetSelectedTimestamp(uint64_t ts)
 {
    m_timestamp = ts;
    UpdateAllData();
    emitSignalsAndValues();
 }
 
-void
-SignalTreeModel::AppendSignal(newVcd::PinDescriptionPtr sig)
+void SignalTreeModel::AppendSignal(vcd::PinDescriptionPtr sig)
 {
    if (std::find_if(m_signals.begin(), m_signals.end(), [&sig](auto it)
-   { return sig->alias() == it->alias(); }) != m_signals.end())
+                    { return sig->GetAlias() == it->GetAlias(); }) != m_signals.end())
    {
       return;
    }
@@ -148,14 +143,13 @@ SignalTreeModel::AppendSignal(newVcd::PinDescriptionPtr sig)
    emitSignalsAndValues();
 }
 
-void
-SignalTreeModel::AppendSignals(const std::vector<newVcd::PinDescriptionPtr>& sigs)
+void SignalTreeModel::AppendSignals(const std::vector<vcd::PinDescriptionPtr> &sigs)
 {
    beginInsertRows(QModelIndex(), rowCount(), rowCount());
-   for (newVcd::PinDescriptionPtr sig : sigs)
+   for (vcd::PinDescriptionPtr sig : sigs)
    {
       if (std::find_if(m_signals.begin(), m_signals.end(), [sig](auto it)
-      { return sig->alias() == it->alias(); }) != m_signals.end())
+                       { return sig->GetAlias() == it->GetAlias(); }) != m_signals.end())
       {
          continue;
       }
@@ -167,10 +161,9 @@ SignalTreeModel::AppendSignals(const std::vector<newVcd::PinDescriptionPtr>& sig
    emitSignalsAndValues();
 }
 
-void
-SignalTreeModel::ReplaceSignalsWithSelection(
-   QItemSelectionModel* selectionModel,
-   const std::vector<newVcd::PinDescriptionPtr>& newSignals)
+void SignalTreeModel::ReplaceSignalsWithSelection(
+    QItemSelectionModel *selectionModel,
+    const std::vector<vcd::PinDescriptionPtr> &newSignals)
 {
    if (!selectionModel)
    {
@@ -187,10 +180,10 @@ SignalTreeModel::ReplaceSignalsWithSelection(
    // Убираем дубликаты индексов, если вдруг что-то выбрано столбцами / битами
    // (или пользователь переключил представление). Также сортируем по row.
    std::sort(selectedIndexes.begin(), selectedIndexes.end(),
-             [](const QModelIndex& a, const QModelIndex& b)
-   {
-      return a.row() < b.row();
-   });
+             [](const QModelIndex &a, const QModelIndex &b)
+             {
+                return a.row() < b.row();
+             });
    selectedIndexes.erase(std::unique(selectedIndexes.begin(), selectedIndexes.end()),
                          selectedIndexes.end());
 
@@ -208,22 +201,22 @@ SignalTreeModel::ReplaceSignalsWithSelection(
    // 1) Удаляем старые сигналы (диапазон [beginRow, endRow]).
    beginRemoveRows(QModelIndex(), beginRow, endRow);
    m_signals.erase(
-      m_signals.begin() + beginRow,
-      m_signals.begin() + endRow + 1);
+       m_signals.begin() + beginRow,
+       m_signals.begin() + endRow + 1);
    endRemoveRows();
 
    // 2) Фильтруем новые сигналы, чтобы не вставлять те, что уже есть
    //    (по полю alias). Если вы хотите всегда вставлять всё подряд,
    //    уберите этот шаг.
-   std::vector<newVcd::PinDescriptionPtr> uniqueNew;
+   std::vector<vcd::PinDescriptionPtr> uniqueNew;
    uniqueNew.reserve(newSignals.size());
-   for (auto& sig : newSignals)
+   for (auto &sig : newSignals)
    {
       auto it = std::find_if(m_signals.begin(), m_signals.end(),
-                             [sig](const newVcd::PinDescriptionPtr& existing)
-      {
-         return existing->alias() == sig->alias();
-      });
+                             [sig](const vcd::PinDescriptionPtr &existing)
+                             {
+                                return existing->GetAlias() == sig->GetAlias();
+                             });
       if (it == m_signals.end())
       {
          uniqueNew.push_back(sig);
@@ -240,9 +233,9 @@ SignalTreeModel::ReplaceSignalsWithSelection(
    // 3) Вставляем новые сигналы в позицию beginRow
    beginInsertRows(QModelIndex(), beginRow, beginRow + static_cast<int>(uniqueNew.size()) - 1);
    m_signals.insert(
-      m_signals.begin() + beginRow,
-      uniqueNew.begin(),
-      uniqueNew.end());
+       m_signals.begin() + beginRow,
+       uniqueNew.begin(),
+       uniqueNew.end());
    endInsertRows();
 
    // По желанию, если у вас есть сигнал об изменении списка:
@@ -250,10 +243,9 @@ SignalTreeModel::ReplaceSignalsWithSelection(
    emitSignalsAndValues();
 }
 
-void
-SignalTreeModel::InsertSignals(
-   const std::vector<newVcd::PinDescriptionPtr>& sigs,
-   std::size_t pos)
+void SignalTreeModel::InsertSignals(
+    const std::vector<vcd::PinDescriptionPtr> &sigs,
+    std::size_t pos)
 {
    if (sigs.empty())
    {
@@ -261,16 +253,16 @@ SignalTreeModel::InsertSignals(
    }
 
    // 1) Фильтруем входные сигналы, убирая уже существующие (по alias).
-   std::vector<newVcd::PinDescriptionPtr> uniqueSigs;
+   std::vector<vcd::PinDescriptionPtr> uniqueSigs;
    uniqueSigs.reserve(sigs.size());
-   for (const auto& sig : sigs)
+   for (const auto &sig : sigs)
    {
       // Проверяем, нет ли уже такого alias
       auto it = std::find_if(m_signals.begin(), m_signals.end(),
-                             [&sig](const newVcd::PinDescriptionPtr& existing)
-      {
-         return existing->alias() == sig->alias();
-      });
+                             [&sig](const vcd::PinDescriptionPtr &existing)
+                             {
+                                return existing->GetAlias() == sig->GetAlias();
+                             });
       if (it == m_signals.end())
       {
          uniqueSigs.push_back(sig);
@@ -296,9 +288,9 @@ SignalTreeModel::InsertSignals(
 
    // 4) Собственно вставляем
    m_signals.insert(
-      m_signals.begin() + static_cast<std::ptrdiff_t>(pos),
-      uniqueSigs.begin(),
-      uniqueSigs.end());
+       m_signals.begin() + static_cast<std::ptrdiff_t>(pos),
+       uniqueSigs.begin(),
+       uniqueSigs.end());
 
    // 5) Завершаем уведомление
    endInsertRows();
@@ -308,8 +300,7 @@ SignalTreeModel::InsertSignals(
    emitSignalsAndValues();
 }
 
-void
-SignalTreeModel::RemoveSignal(const QModelIndex& index)
+void SignalTreeModel::RemoveSignal(const QModelIndex &index)
 {
    if (!index.isValid() || index.row() >= static_cast<int>(m_signals.size()))
       return;
@@ -322,14 +313,13 @@ SignalTreeModel::RemoveSignal(const QModelIndex& index)
    emitSignalsAndValues();
 }
 
-void
-SignalTreeModel::RemoveSignals(const QModelIndexList& idxs)
+void SignalTreeModel::RemoveSignals(const QModelIndexList &idxs)
 {
    int beginRow = 0;
    int endRow = 0;
    int offset = 0;
    bool changed = false;
-   for (const auto& idx : idxs)
+   for (const auto &idx : idxs)
    {
       if (!idx.isValid() || idx.parent().isValid())
       {
@@ -351,8 +341,7 @@ SignalTreeModel::RemoveSignals(const QModelIndexList& idxs)
    emitSignalsAndValues();
 }
 
-void
-SignalTreeModel::SetHandle(std::shared_ptr<newVcd::Handle> VcdHandle)
+void SignalTreeModel::SetHandle(std::shared_ptr<vcd::Handle> VcdHandle)
 {
    beginResetModel();
    m_handle = VcdHandle;
@@ -362,8 +351,7 @@ SignalTreeModel::SetHandle(std::shared_ptr<newVcd::Handle> VcdHandle)
    emitSignalsAndValues();
 }
 
-int
-SignalTreeModel::rowCount(const QModelIndex& parent) const
+int SignalTreeModel::rowCount(const QModelIndex &parent) const
 {
    if (!parent.isValid())
    {
@@ -378,10 +366,10 @@ SignalTreeModel::rowCount(const QModelIndex& parent) const
          int parentRow = parent.row();
          if (parentRow >= 0 && parentRow < static_cast<int>(m_signals.size()))
          {
-            const auto& pin = m_signals.at(parentRow);
-            if (pin->sigType() == newVcd::SigType::complex)
+            const auto &pin = m_signals.at(parentRow);
+            if (pin->GetSignalType() == vcd::SignalType::bus)
             {
-               const auto bitDepth = std::static_pointer_cast<newVcd::MultiplePinDescription>(pin)->bitDepth();
+               const auto bitDepth = std::static_pointer_cast<vcd::BusPinDescription>(pin)->GetBitDepth();
                return static_cast<int>(bitDepth.first - bitDepth.second + 1);
             }
          }
@@ -395,46 +383,45 @@ SignalTreeModel::rowCount(const QModelIndex& parent) const
    return 0;
 }
 
-int
-SignalTreeModel::columnCount(const QModelIndex& parent) const
+int SignalTreeModel::columnCount(const QModelIndex &parent) const
 {
    Q_UNUSED(parent);
    return 1;
 }
 
 QVariant
-SignalTreeModel::data(const QModelIndex& index, int role) const
+SignalTreeModel::data(const QModelIndex &index, int role) const
 {
    if (!index.isValid() || role != Qt::DisplayRole)
    {
       return QVariant();
    }
 
-   newVcd::PinDescriptionPtr pin = GetPinDescriptionFromIndex(index);
+   vcd::PinDescriptionPtr pin = GetPinDescriptionFromIndex(index);
    if (!pin)
       return QVariant();
 
-   QString displayName = QString::fromStdString(std::string(pin->name()));
+   QString displayName = QString::fromStdString(std::string(pin->GetName()));
 
    if (index.internalPointer() == nullptr)
    {
       // Верхний уровень
-      if (pin->sigType() == newVcd::SigType::complex)
+      if (pin->GetSignalType() == vcd::SignalType::bus)
       {
-         const auto& bitDepth = std::static_pointer_cast<newVcd::MultiplePinDescription>(pin)->bitDepth();
+         const auto &bitDepth = std::static_pointer_cast<vcd::BusPinDescription>(pin)->GetBitDepth();
          displayName += "[" + QString::number(bitDepth.first) + ":" + QString::number(bitDepth.second) + "]";
       }
       if (m_timestamp.has_value())
       {
          QString value;
-         if (pin->pinType() == newVcd::PinType::parameter)
+         if (pin->GetPinType() == vcd::PinType::parameter)
          {
-            value = QString::number(std::stoi(pin->initState(), 0, 2), 16).toUpper();
+            value = QString::number(std::stoi(pin->GetInitState(), 0, 2), 16).toUpper();
          }
-         else if (pin->sigType() == newVcd::SigType::complex)
+         else if (pin->GetSignalType() == vcd::SignalType::bus)
          {
-            auto multiplePin = std::static_pointer_cast<newVcd::MultiplePinDescription>(pin);
-            std::string tmpVal = std::string(multiplePin->getValueBus(m_timestamp.value()));
+            auto multiplePin = std::static_pointer_cast<vcd::BusPinDescription>(pin);
+            std::string tmpVal = std::string(multiplePin->GetValueBus(m_timestamp.value()));
             if (std::all_of(tmpVal.begin(), tmpVal.end(), isdigit))
             {
                value = QString::number(std::stoi(tmpVal, 0, 2), 16).toUpper();
@@ -446,22 +433,23 @@ SignalTreeModel::data(const QModelIndex& index, int role) const
          }
          else
          {
-            auto simplePin = std::static_pointer_cast<newVcd::SimplePinDescription>(pin);
-            value = QString(simplePin->getValueChar(m_timestamp.value()));
+            auto simplePin = std::static_pointer_cast<vcd::SimplePinDescription>(pin);
+            value = QString(simplePin->GetValueChar(m_timestamp.value()));
          }
          displayName += " = " + value;
       }
    }
    else
    {
-      //// Уровень битов
-      // int bitIndex = pin->bitDepth->first - index.row();
-      // displayName += "[" + QString::number(bitIndex) + "]";
-      // if (m_timestamp.has_value())
-      //{
-      //    char value = m_handle->GetPinValueAtTs(m_timestamp.value(), pin, bitIndex);
-      //    displayName += " = " + QString(value);
-      // }
+      // Уровень битов
+      auto multiplePin = std::static_pointer_cast<vcd::BusPinDescription>(pin);
+      int bitIndex = multiplePin->GetBitDepth().first - index.row();
+      displayName += "[" + QString::number(bitIndex) + "]";
+      if (m_timestamp.has_value())
+      {
+         char value = multiplePin->GetValueChar(m_timestamp.value(), bitIndex);
+         displayName += " = " + QString(value);
+      }
    }
    return displayName;
 }
@@ -477,7 +465,7 @@ SignalTreeModel::headerData(int section, Qt::Orientation orientation, int role) 
 }
 
 QModelIndex
-SignalTreeModel::index(int row, int column, const QModelIndex& parent) const
+SignalTreeModel::index(int row, int column, const QModelIndex &parent) const
 {
    if (!hasIndex(row, column, parent))
       return QModelIndex();
@@ -492,7 +480,7 @@ SignalTreeModel::index(int row, int column, const QModelIndex& parent) const
       if (parent.internalPointer() == nullptr)
       {
          // Уровень битов
-         return createIndex(row, column, reinterpret_cast<void*>(static_cast<qintptr>(parent.row()) + 1));
+         return createIndex(row, column, reinterpret_cast<void *>(static_cast<qintptr>(parent.row()) + 1));
       }
       else
       {
@@ -503,7 +491,7 @@ SignalTreeModel::index(int row, int column, const QModelIndex& parent) const
 }
 
 QModelIndex
-SignalTreeModel::parent(const QModelIndex& index) const
+SignalTreeModel::parent(const QModelIndex &index) const
 {
    if (!index.isValid())
       return QModelIndex();
@@ -525,14 +513,12 @@ SignalTreeModel::parent(const QModelIndex& index) const
  *         FixedHeightDelegate
  **************************************/
 
-FixedHeightDelegate::FixedHeightDelegate(int fixedHeight, QObject* parent)
-   : QStyledItemDelegate(parent)
-   , m_fixedHeight(fixedHeight)
+FixedHeightDelegate::FixedHeightDelegate(int fixedHeight, QObject *parent)
+    : QStyledItemDelegate(parent), m_fixedHeight(fixedHeight)
 {
 }
 
-QSize
-FixedHeightDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const
+QSize FixedHeightDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
    QSize size = QStyledItemDelegate::sizeHint(option, index);
    size.setHeight(m_fixedHeight);
@@ -543,8 +529,8 @@ FixedHeightDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIn
  *          SignalTreeView
  **************************************/
 
-SignalTreeView::SignalTreeView(QWidget* parent)
-   : QTreeView(parent)
+SignalTreeView::SignalTreeView(QWidget *parent)
+    : QTreeView(parent)
 {
 
    header()->setFixedHeight(30);
@@ -562,21 +548,20 @@ SignalTreeView::SignalTreeView(QWidget* parent)
    connect(this, &QTreeView::customContextMenuRequested, this, &SignalTreeView::OnCustomMenuRequested);
 }
 
-QScrollBar*
+QScrollBar *
 SignalTreeView::GetVerticalScrollBar() const
 {
    return verticalScrollBar();
 }
 
-void
-SignalTreeView::keyPressEvent(QKeyEvent* event)
+void SignalTreeView::keyPressEvent(QKeyEvent *event)
 {
    if (event->key() == Qt::Key_Delete)
    {
       QModelIndex currentIndex = selectionModel()->currentIndex();
       if (currentIndex.isValid())
       {
-         auto* model = qobject_cast<SignalTreeModel*>(this->model());
+         auto *model = qobject_cast<SignalTreeModel *>(this->model());
          if (model)
          {
             QModelIndexList indexes = selectionModel()->selectedIndexes();
@@ -590,48 +575,43 @@ SignalTreeView::keyPressEvent(QKeyEvent* event)
    }
 }
 
-void
-SignalTreeView::OnCustomMenuRequested(const QPoint& pos)
+void SignalTreeView::OnCustomMenuRequested(const QPoint &pos)
 {
    QModelIndex index = this->indexAt(pos);
    if (index.isValid())
    {
       QMenu contextMenu;
 
-      QAction* deleteAction = contextMenu.addAction("Delete");
+      QAction *deleteAction = contextMenu.addAction("Delete");
       connect(deleteAction, &QAction::triggered, this, [index, this]()
-      {
+              {
          auto* model = qobject_cast<SignalTreeModel*>(this->model());
 
          if (model)
          {
             QModelIndexList indexes = selectionModel()->selectedIndexes();
             model->RemoveSignals(indexes); // Удаляем выбранный сигнал
-         }
-      });
+         } });
       contextMenu.exec(this->viewport()->mapToGlobal(pos));
    }
 }
 
-void
-SignalTreeView::onItemExpanded(const QModelIndex& index)
+void SignalTreeView::onItemExpanded(const QModelIndex &index)
 {
    emitPinDescriptionSignal(index, true);
 }
 
-void
-SignalTreeView::onItemCollapsed(const QModelIndex& index)
+void SignalTreeView::onItemCollapsed(const QModelIndex &index)
 {
    emitPinDescriptionSignal(index, false);
 }
 
-void
-SignalTreeView::emitPinDescriptionSignal(const QModelIndex& index, bool isExpanded)
+void SignalTreeView::emitPinDescriptionSignal(const QModelIndex &index, bool isExpanded)
 {
-   auto* model = qobject_cast<SignalTreeModel*>(this->model());
+   auto *model = qobject_cast<SignalTreeModel *>(this->model());
    if (model)
    {
-      newVcd::PinDescriptionPtr pin = model->GetPinDescriptionFromIndex(index);
+      vcd::PinDescriptionPtr pin = model->GetPinDescriptionFromIndex(index);
       if (pin)
       {
          emit itemExpandedOrCollapsed(pin, isExpanded);

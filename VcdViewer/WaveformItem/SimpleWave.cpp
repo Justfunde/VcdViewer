@@ -1,283 +1,184 @@
 #include "Include/VcdStructs.hpp"
 #include "WaveItems.hpp"
 
-#include <QPainter>
-#include <map>
-#include <cmath>
-#include <algorithm>
+#include <QDebug>
+#include <iostream>
 
-/*───────────────────────── helpers ──────────────────────────*/
-namespace
-{
-   inline int yFor(char v) noexcept
-   {
-      return v == '1'   ? SPACING
-             : v == 'z' ? WAVEFORM_HEIGHT / 2
-                        : WAVEFORM_HEIGHT; // '0' или 'x'
-   }
-} // namespace
-
-/*──────────────────────── ctor ──────────────────────────────*/
-SimpleWaveItem::SimpleWaveItem(const std::shared_ptr<newVcd::Handle> &h,
-                               std::shared_ptr<newVcd::SimplePinDescription> p,
+SimpleWaveItem::SimpleWaveItem(const std::shared_ptr<vcd::Handle> &h,
+                               std::shared_ptr<vcd::SimplePinDescription> p,
                                int yOffset,
-                               std::optional<std::size_t> bit,
+                               std::optional<std::size_t> idx,
                                QGraphicsItem *parent)
-    : QGraphicsItem(parent), handle(h), pin(std::move(p)), idx(bit)
+    : QGraphicsItem(parent), m_handle(h), m_pin(p), m_idx(idx)
 {
    setPos(0, yOffset);
-   // setCacheMode(ItemCoordinateCache); // самый дешёвый кэш
+   setCacheMode(DeviceCoordinateCache);
 
-   buildSegments();
+   // Предварительно строим полный путь один раз
+   PrecalcFullPath();
 }
 
-/*──────────────────────── boundingRect ─────────────────────*/
-QRectF SimpleWaveItem::boundingRect() const
+QRectF
+SimpleWaveItem::boundingRect() const
 {
-   return {0, 0,
-           qreal(handle->maxTs()),
+   return {0.0,
+           0.0,
+           qreal(m_handle->GetMaxTs()),
            qreal(WAVEFORM_HEIGHT + SPACING)};
 }
 
-/*────────────────────── buildSegments() ────────────────────*/
-void SimpleWaveItem::buildSegments()
-{
-   const auto &tl = pin->timeline();
-   const auto endT = handle->maxTs();
-   const size_t b = idx.value_or(0);
-
-   char prevVal = pin->initState().front();
-   quint64 prevTs = 0;
-   quint64 xLeft = 0;
-
-   auto push = [&](quint64 l, quint64 r, char v)
-   {
-      if (l < r)
-         segs_.push_back({l, r, v});
-   };
-
-   if (tl.empty()) /*–– без переходов –*/
-   {
-      if (prevVal == 'x')
-         xRects_.emplace_back(QRect(0, SPACING, endT, WAVEFORM_HEIGHT));
-      else
-         push(0, endT, prevVal);
-      return;
-   }
-
-   for (const auto &ev : tl)
-   {
-      const quint64 t = ev.timestamp;
-      const char val = pin->getValueChar(t, b);
-
-      push(prevTs, t, prevVal);
-
-      if (prevVal == 'x' && val != 'x')
-         xRects_.emplace_back(QRect(xLeft, SPACING, t - xLeft, WAVEFORM_HEIGHT));
-      if (prevVal != 'x' && val == 'x')
-         xLeft = t;
-
-      prevVal = val;
-      prevTs = t;
-   }
-
-   /* хвост */
-   if (prevVal == 'x')
-      xRects_.emplace_back(QRect(prevTs, SPACING, endT - prevTs, WAVEFORM_HEIGHT));
-   else
-      push(prevTs, endT, prevVal);
-}
-
-/*──────────────────────── paint() ──────────────────────────*/
 void SimpleWaveItem::paint(QPainter *p,
                            const QStyleOptionGraphicsItem *opt,
                            QWidget *)
 {
-   p->setRenderHint(QPainter::Antialiasing, false);
-   renderVisible(p, opt);
+   p->setRenderHint(QPainter::Antialiasing);
+
+   // границы по X видимой области
+   const qreal x0 = std::max<qreal>(0, opt->exposedRect.left());
+   const qreal x1 = std::min<qreal>(m_handle->GetMaxTs(),
+                                    opt->exposedRect.right());
+
+   QPen pen(Qt::green, 1);
+   pen.setCosmetic(true);
+   p->setPen(pen);
+   p->drawPath(m_precalcedPath);
+
+   QPen yellowPen(Qt::yellow, 1);
+   yellowPen.setCosmetic(true);
+   p->setPen(yellowPen);
+
+   for (const auto &it : m_precalcedZPath)
+   {
+      p->drawPath(it);
+   }
+
+   QPen redPen = QPen(Qt::red);
+   redPen.setCosmetic(true);
+
+   QBrush darkRedBrush = QBrush(Qt::darkRed);
+
+   p->setPen(redPen);
+   p->setBrush(darkRedBrush);
+
+   for (const auto &it : m_precalcedXRectangles)
+   {
+      p->drawRect(it);
+   }
 }
 
-/*───────────────────── renderVisible() ─────────────────────*/
-#include <QElapsedTimer>
-#include <QDebug>
-
-/*───────────────────── renderVisible() ─────────────────────*/
-#include <QElapsedTimer>
-#include <QDebug>
-
-void SimpleWaveItem::renderVisible(QPainter *p,
-                                   const QStyleOptionGraphicsItem *opt)
+// строит полный путь для всей последовательности
+void SimpleWaveItem::PrecalcFullPath()
 {
-   QElapsedTimer tAll;
-   tAll.start();
+   const int yPos = SPACING;
+   const int yNeg = WAVEFORM_HEIGHT;
+   const int yZ = WAVEFORM_HEIGHT / 2;
 
-   /* 1 ─ видимые границы -------------------------------------------------- */
-   QElapsedTimer t;
-   t.start();
-   const quint64 visL = quint64(std::max<qreal>(0.0, opt->exposedRect.left()));
-   const quint64 visR = quint64(std::min<qreal>(qreal(handle->maxTs()),
-                                                opt->exposedRect.right()));
-   if (visL >= visR)
-      return;
-   qWarning() << "SWI-render: step1-bounds —" << t.elapsed() << "ms";
-
-   /* 2 ─ масштаб ---------------------------------------------------------- */
-   t.restart();
-   /* 2. масштаб X -------------------------------------------------------- */
-   const qreal pxPerTick = p->worldTransform().m11(); // px / tick
-   const qreal worldStep = 1.0 / pxPerTick;           // tick-ов в одном px
-
-   /* ширина видимой области в ЭКРАННЫХ пикселях  */
-   const int pixelW =
-       std::max<int>(1, int(std::ceil(opt->exposedRect.width() * pxPerTick)));
-   qWarning() << "SWI-render: step2-scale  —" << t.elapsed() << "ms";
-
-   /* 3 ─ buckets: плоские массивы ---------------------------------------- */
-   t.restart();
-   struct Bucket
+   auto yFor = [&](const QString &s)
    {
-      bool z = false, v0 = false, v1 = false;
+      if (s == "1")
+         return yPos;
+      if (s == "z")
+         return yZ;
+      return yNeg; // "0" или "x"
    };
 
-   std::vector<Bucket> buckets; // переиспользуем память
-   buckets.assign(pixelW, {});  // обнулить O(width)
+   std::int64_t itL = 0;
+   std::int64_t itR = m_handle->GetMaxTs();
 
-   std::vector<int> cols;    // индексы изменённых колонок
-   cols.reserve(pixelW / 4); // грубо 25 % окна
-   qWarning() << "SWI-render: step3-bucket-reset —" << t.elapsed() << "ms";
+   QPainterPath path;
+   QPainterPath zTmpPath;
+   std::vector<std::pair<std::uint64_t, std::uint64_t>> xValueRanges;
+   std::uint64_t xL = 0;
 
-   /* helper ─ вывод содержимого buckets ---------------------------------- */
-   auto flushBuckets = [&]()
+   QString prev;
+   prev = m_pin->GetValueChar(itL, m_idx.value_or(0));
+
+   path.moveTo(itL, yFor(prev)); // старт всегда виден
+   if (yFor(prev) == yZ)
    {
-      static QPen thinPen(Qt::green, 1);
-      thinPen.setCosmetic(true);
-      p->setPen(thinPen);
-      p->setBrush(Qt::NoBrush);
+      zTmpPath.moveTo(itL, yFor(prev));
+   }
+   uint64_t lastTs = itL;
 
-      if (cols.empty())
-         return;
-
-      std::sort(cols.begin(), cols.end());
-      cols.erase(std::unique(cols.begin(), cols.end()), cols.end());
-
-      int runStart = -1, prevCol = -2;
-      auto flushRun = [&](int colAfter)
-      {
-         if (runStart < 0)
-            return;
-         const qreal x0 = opt->exposedRect.left() + runStart * worldStep;
-         const qreal w = (colAfter - runStart) * worldStep;
-         p->fillRect(QRectF(x0, yFor('1') - 0.5, w, 1.0), Qt::green);
-         runStart = -1;
-      };
-
-      for (int col : cols)
-      {
-         const Bucket &b = buckets[col];
-         const bool pure1 = b.v1 && !b.v0 && !b.z;
-
-         if (pure1) /* накапливаем полосу «1» */
-         {
-            if (runStart < 0)
-               runStart = col;
-            else if (col != prevCol + 1)
-            {
-               flushRun(col);
-               runStart = col;
-            }
-            prevCol = col;
-         }
-         else /* выводим одиночную колонку */
-         {
-            flushRun(col);
-            const qreal x0 = opt->exposedRect.left() + col * worldStep;
-            const qreal x1 = x0 + worldStep;
-
-            if (b.v0)
-               p->drawLine(QLineF(x0, yFor('0'), x1, yFor('0')));
-            if (b.z)
-               p->drawLine(QLineF(x0, yFor('z'), x1, yFor('z')));
-            if (b.v0 && b.v1)
-               p->drawLine(QLineF(x0, yFor('1'), x1, yFor('1')));
-         }
-      }
-      flushRun(cols.back() + 1);
-      cols.clear();
-   };
-
-   /* 4 ─ обход segs_ ------------------------------------------------------ */
-   t.restart();
-   auto first = std::lower_bound(
-       segs_.begin(), segs_.end(), visL,
-       [](const LineSeg &s, quint64 ts)
-       { return s.rightTs < ts; });
-
-   static QPen horzPen(Qt::green, 1);
-   horzPen.setCosmetic(true);
-   p->setPen(horzPen);
-
-   char prevVal = 0;
-   bool firstSeg = true;
-
-   for (auto it = first; it != segs_.end() && it->leftTs < visR; ++it)
+   QString s;
+   if (m_pin->GetTimeline().empty())
    {
-      quint64 l = std::max<quint64>(it->leftTs, visL);
-      quint64 r = std::min<quint64>(it->rightTs, visR);
-      if (l >= r)
-         continue;
-
-      if (!firstSeg && it->value != prevVal)
-      { /* вертикальный переход */
-         flushBuckets();
-         p->drawLine(QLineF(l, yFor(prevVal), l, yFor(it->value)));
-      }
-      firstSeg = false;
-      prevVal = it->value;
-
-      const int colL = int((l - visL) * pxPerTick);
-      const int colR = int((r - visL) * pxPerTick);
-
-      if (colL == colR) /* узкий сегмент → bucket */
+      const char initState = m_pin->GetInitState()[0];
+      if (initState == '0')
       {
-         Bucket &b = buckets[colL];
-         if (it->value == '0')
-            b.v0 = true;
-         else if (it->value == '1')
-            b.v1 = true;
-         else if (it->value == 'z')
-            b.z = true;
-         cols.push_back(colL);
+         path.moveTo(0, yNeg);
+         path.lineTo(m_handle->GetMaxTs(), yNeg);
       }
-      else /* широкий сегмент → сразу */
+      else if (initState == '1')
       {
-         flushBuckets();
-         p->drawLine(QLineF(l, yFor(it->value), r, yFor(it->value)));
+         path.moveTo(0, yPos);
+         path.lineTo(m_handle->GetMaxTs(), yPos);
+      }
+      else if (initState == 'z')
+      {
+         zTmpPath.moveTo(0, yZ);
+         zTmpPath.lineTo(m_handle->GetMaxTs(), yZ);
+      }
+      else if (initState == 'x')
+      {
+         xValueRanges.push_back({0, m_handle->GetMaxTs()});
       }
    }
-   qWarning() << "SWI-render: step4-segments —" << t.elapsed() << "ms";
+   for (const auto &it : m_pin->GetTimeline())
+   {
+      uint64_t ts = it.timestamp;
+      s = (m_pin->GetValueChar(ts, m_idx.value_or(0)));
+      const uint64_t yForPrevValue = yFor(prev);
+      const uint64_t yForValue = yFor(s);
 
-   flushBuckets(); /* окончательный сброс */
+      path.lineTo(ts, yForPrevValue);
+      path.lineTo(ts, yForValue);
 
-   /* 5 ─ X-участки -------------------------------------------------------- */
-   t.restart();
-   static QPen xPen(Qt::red, 1);
-   xPen.setCosmetic(true);
-   static QBrush xBrush(Qt::darkRed);
-   p->setPen(xPen);
-   p->setBrush(xBrush);
+      if (prev == "x")
+      {
+         xValueRanges.push_back({xL, ts});
+      }
+      if (s == "x")
+      {
+         xL = ts;
+      }
 
-   for (const auto &rect : xRects_)
-      if (rect.right() >= visL && rect.left() <= visR)
-         p->drawRect(rect);
-   qWarning() << "SWI-render: step5-drawX —" << t.elapsed() << "ms";
+      prev = s;
 
-   /* итог ----------------------------------------------------------------- */
-   qWarning() << "SWI-render: TOTAL —" << tAll.elapsed() << "ms";
-}
+      if (yForPrevValue == yZ)
+      {
+         zTmpPath.lineTo(ts, yZ);
+         m_precalcedZPath.push_back(zTmpPath);
+         zTmpPath.clear();
+      }
+      if (yForValue == yZ)
+      {
+         zTmpPath.moveTo(ts, yForValue);
+      }
+   }
 
-/*─────────────────── заглушки findT / subPathByX ──────────────────*/
-qreal SimpleWaveItem::findT(const QPainterPath &, qreal, int) { return 0; }
-QPainterPath SimpleWaveItem::subPathByX(const QPainterPath &, qreal, qreal, int)
-{
-   return {};
+   if (s == "0")
+   {
+      path.lineTo(m_handle->GetMaxTs(), yNeg);
+   }
+   else if (s == "1")
+   {
+      path.lineTo(m_handle->GetMaxTs(), yPos);
+   }
+   else if (s == "z")
+   {
+      zTmpPath.lineTo(m_handle->GetMaxTs(), yZ);
+   }
+   else if (s == "x")
+   {
+      xValueRanges.push_back({m_pin->GetTimeline().rbegin()->timestamp, m_handle->GetMaxTs()});
+   }
+
+   m_precalcedPath = std::move(path);
+
+   for (const auto &[left, right] : xValueRanges)
+   {
+      QRect rect(left, yPos, right - left, WAVEFORM_HEIGHT);
+      m_precalcedXRectangles.emplace_back(rect);
+   }
 }

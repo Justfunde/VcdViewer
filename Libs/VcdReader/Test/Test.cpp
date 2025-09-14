@@ -6,7 +6,7 @@
 //{
 //    const std::filesystem::path fPath = "/home/justfunde/Work/vcd/test1.vcd";
 //
-//    newVcdReader reader;
+//    vcdReader reader;
 //    const auto vcdHandle = reader.ParseFile(fPath);
 // }
 
@@ -17,7 +17,7 @@
 //    const std::filesystem::path fPath = "/home/justfunde/Projects/vcd/VcdTests/c432.gates.flat.synth - XXL.vcd";
 //    // const std::filesystem::path fPath = "/home/justfunde/Projects/vcd/VcdTests/c432.gates.flat.synth - XXL.vcd";
 //
-//    newVcdReader reader;
+//    vcdReader reader;
 //    auto vcdHandle = reader.ParseFile(fPath);
 //
 //    // vcdHandle->ensureSignalLoaded("'");
@@ -32,7 +32,7 @@
 //    const std::filesystem::path fPath = "/home/justfunde/Projects/vcd/VcdTests/c432.gates.flat.synth - XXL.vcd";
 //    // const std::filesystem::path fPath = "/home/justfunde/Projects/vcd/VcdTests/c432.gates.flat.synth - XXL.vcd";
 //
-//    newVcdReader reader;
+//    vcdReader reader;
 //    auto vcdHandle = reader.ParseFile(fPath);
 //
 //    vcdHandle->loadParallel();
@@ -45,13 +45,13 @@ TEST(VcdReaderNew, majorityOf5)
 {
    const std::filesystem::path fPath = "/home/justfunde/Projects/MIET/VcdViewer/VcdTests/test1.vcd";
 
-   newVcd::Handle h;
+   vcd::Handle h;
    h.Init(fPath);
    h.LoadHdr();
    h.LoadSignals();
    // auto map = h.alias2pinMap();
    // auto pPin = map["%"];
-   // auto pPin2 = std::static_pointer_cast<newVcd::SimplePinDescription>(pPin);
+   // auto pPin2 = std::static_pointer_cast<vcd::SimplePinDescription>(pPin);
    int a = 5;
    a += 5;
    // const auto vcdHandle = reader.ParseFile(fPath);
@@ -61,13 +61,13 @@ TEST(VcdReaderNew, majorityOf5)
 //{
 //    const std::filesystem::path fPath = "/home/justfunde/Projects/vcd/VcdTests/c432.gates.flat.synth - XXL.vcd";
 //
-//    newVcd::Handle h;
+//    vcd::Handle h;
 //    h.Init(fPath);
 //    h.LoadHdr();
 //    h.LoadSignalsParallel();
 //    // auto map = h.alias2pinMap();
 //    // auto pPin = map["%"];
-//    // auto pPin2 = std::static_pointer_cast<newVcd::SimplePinDescription>(pPin);
+//    // auto pPin2 = std::static_pointer_cast<vcd::SimplePinDescription>(pPin);
 //    int a = 5;
 //    a += 5;
 //    // const auto vcdHandle = reader.ParseFile(fPath);
