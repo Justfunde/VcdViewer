@@ -9,6 +9,7 @@
 #include <thread>
 #include <unordered_set>
 #include <vector>
+#include <cassert>
 
 #include <fstream>
 
@@ -64,7 +65,7 @@ namespace vcd
    {
       auto scopeName = m_tokens.front();
       m_tokens.pop();
-      if (scopeName == "module")
+      if (scopeName == "module" || scopeName == "task")
       {
          std::shared_ptr<Module> module = std::make_shared<Module>();
          module->m_moduleName = m_tokens.front();
@@ -118,7 +119,14 @@ namespace vcd
       }
       else
       {
-         // assert(true);
+         std::string currentToken;
+         while (currentToken != "$upscope")
+         {
+            currentToken = m_tokens.front();
+            m_tokens.pop();
+         }
+         // skip end
+         m_tokens.pop();
       }
       return nullptr;
    }
@@ -129,6 +137,7 @@ namespace vcd
       static std::unordered_map<std::string, PinType> strToPinTypeMap =
           {
               {"wire", PinType::wire},
+              {"integer", PinType::integer},
               {"reg", PinType::reg},
               {"parameter", PinType::parameter}};
 
@@ -277,7 +286,7 @@ namespace vcd
       m_size = std::filesystem::file_size(fileName);
       m_data.resize(m_size);
 
-      std::fstream f(m_filepath.string());
+      std::ifstream f(m_filepath.string(), std::ios::binary);
       f.read(m_data.data(), m_size);
 
       m_data.erase(std::remove(m_data.begin(), m_data.end(), '\r'), m_data.end());
@@ -643,6 +652,11 @@ namespace vcd
          mergedRanges.insert(L.m_ranges.begin(), L.m_ranges.end());
       }
 
+      std::transform(m_alias2pin.begin(), m_alias2pin.end(),
+                     std::back_inserter(m_pins),
+                     [](auto const &kv)
+                     { return kv.second; });
+
       m_dumpoffIntervals.clear();
       bool inside = false;
       uint64_t beg = 0;
@@ -661,24 +675,10 @@ namespace vcd
          }
       }
 
-      /* 7. сортируем каждую ленту изменений (они были отсортированы
-            внутри потока, но не между потоками) */
-      for (auto &pin : m_pins)
+      // Удаление дубликатов
+      for (auto &&it : m_pins)
       {
-         if (pin->GetSignalType() == SignalType::simple)
-         {
-            auto sp = std::static_pointer_cast<SimplePinDescription>(pin);
-            std::sort(sp->m_values.begin(), sp->m_values.end(),
-                      [](auto &a, auto &b)
-                      { return a.timestamp < b.timestamp; });
-         }
-         else if (pin->GetSignalType() == SignalType::bus)
-         {
-            auto mp = std::static_pointer_cast<BusPinDescription>(pin);
-            std::sort(mp->m_values.begin(), mp->m_values.end(),
-                      [](auto &a, auto &b)
-                      { return a.timestamp < b.timestamp; });
-         }
+         it->SortAndRemoveDuplicates();
       }
 
       auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(

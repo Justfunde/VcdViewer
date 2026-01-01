@@ -24,6 +24,7 @@ namespace vcd
    enum class PinType : std::uint8_t
    {
       wire = 1,
+      integer,
       reg,
       parameter
    };
@@ -129,6 +130,10 @@ namespace vcd
          m_parent = parent;
       }
 
+      virtual void SortAndRemoveDuplicates()
+      {
+      }
+
       //---------------- разделённые виртуальные getters ----------------
       /**  Для 1-битовых пинов. Возвращает символ '0','1','x' или 'z'. */
       virtual char GetValueChar(std::uint64_t ts, std::size_t bit = 0) const = 0;
@@ -231,6 +236,23 @@ namespace vcd
          return tmp;
       }
 
+      void SortAndRemoveDuplicates()
+      {
+         std::sort(m_values.begin(), m_values.end(),
+                   [](PinValue const &a, PinValue const &b)
+                   {
+                      return a.timestamp < b.timestamp;
+                   });
+
+         auto uniqueEnd = std::unique(m_values.begin(), m_values.end(),
+                                      [](PinValue const &a, PinValue const &b)
+                                      {
+                                         return a.timestamp == b.timestamp;
+                                      });
+
+         m_values.erase(uniqueEnd, m_values.end());
+      }
+
    private:
       std::vector<PinValue> m_values; //!< вектор изменений ‘0/1/x/z’ (ts + view на один символ)
 
@@ -285,6 +307,11 @@ namespace vcd
       std::string_view
       GetValueBus(std::uint64_t ts) const override
       {
+         if (m_values.empty())
+         {
+            return m_initState;
+         }
+
          if (ts < m_values.begin()->timestamp)
          {
             return m_initState;
@@ -308,6 +335,11 @@ namespace vcd
       char
       GetValueChar(std::uint64_t ts, std::size_t bit = 0) const override
       {
+         if (m_values.empty())
+         {
+            return m_initState[0];
+         }
+
          if (ts < m_values.begin()->timestamp)
          {
             return m_initState[0];
@@ -330,6 +362,23 @@ namespace vcd
          {
             return bus[bit];
          }
+      }
+
+      void SortAndRemoveDuplicates()
+      {
+         std::sort(m_values.begin(), m_values.end(),
+                   [](PinValue const &a, PinValue const &b)
+                   {
+                      return a.timestamp < b.timestamp;
+                   });
+
+         auto uniqueEnd = std::unique(m_values.begin(), m_values.end(),
+                                      [](PinValue const &a, PinValue const &b)
+                                      {
+                                         return a.timestamp == b.timestamp;
+                                      });
+
+         m_values.erase(uniqueEnd, m_values.end());
       }
 
    private:

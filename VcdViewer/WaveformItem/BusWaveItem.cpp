@@ -3,17 +3,13 @@
 #include <QDebug>
 #include <algorithm>
 #include <cmath>
+#include "Include/Bin2Hex.hpp"
 
 namespace
 {
    QString binToHex(QString bin)
    {
-      bool ok = false;
-      quint64 v = bin.toULongLong(&ok, /*base=*/2);
-      if (!ok)
-         return QStringLiteral("+");
-
-      return QString::number(v, 16).toUpper();
+      return QString::fromStdString(utils::BinaryToHex(bin.toStdString()));
    }
 
    /* классификация bus-строки */
@@ -43,7 +39,7 @@ MultipleWaveItem::MultipleWaveItem(
     : QGraphicsItem(parent), m_scaleCoeff(scale), m_handle(h), m_pin(std::move(p))
 {
    setPos(0, yOffset);
-   setCacheMode(DeviceCoordinateCache);
+   // setCacheMode(DeviceCoordinateCache);
    PreparePaths();
 }
 
@@ -178,11 +174,12 @@ void MultipleWaveItem::PreparePaths()
  *    - шрифт фиксированного размера, не масштабируется вместе с вью
  * ===================================================================== */
 void MultipleWaveItem::paint(QPainter *p,
-                             const QStyleOptionGraphicsItem *,
+                             const QStyleOptionGraphicsItem *opt,
                              QWidget *)
 {
    /* ── линии ──────────────────────────────────────────────────────── */
    p->setRenderHint(QPainter::Antialiasing);
+   p->setClipRect(opt->exposedRect);
 
    QPen pen(Qt::green, 1);
    pen.setCosmetic(true);

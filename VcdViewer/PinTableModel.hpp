@@ -190,6 +190,8 @@ private:
       {
       case vcd::PinType::wire:
          return "wire";
+      case vcd::PinType::integer:
+         return "integer";
       case vcd::PinType::reg:
          return "reg";
       case vcd::PinType::parameter:

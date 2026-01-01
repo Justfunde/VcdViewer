@@ -57,7 +57,7 @@ MainWindow::MainWindow(QWidget *Parent)
          // Эмитируем сигнал с выбранным файлом
          emit AskForFileOpen(filePath);
       } });
-   // emit AskForFileOpen("/home/justfunde/Work/MIET/vcd/c17.vcd");
+   emit AskForFileOpen("/home/justfunde/Work/Miet/VcdViewer/VcdTests/bugs/c432.vcd");
 }
 
 void MainWindow::OnBrowse()

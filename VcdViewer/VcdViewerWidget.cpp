@@ -251,6 +251,12 @@ std::vector<vcd::PinDescriptionPtr> VcdViewerWidget::SelectedPins() const
 std::optional<quint64>
 VcdViewerWidget::ParseTime(const QString &txt) const
 {
+   // Если левая граница 0, нас не интересуют единицы измерения
+   if(txt[0] == '0')
+   {
+      return 0;
+   }
+
    const QRegularExpression re(QStringLiteral(R"(^\s*([0-9]+)\s*([a-zA-Z]*)\s*$)"));
    const QRegularExpressionMatch m = re.match(txt);
    if (!m.hasMatch())
@@ -260,6 +266,11 @@ VcdViewerWidget::ParseTime(const QString &txt) const
    const quint64 number = m.captured(1).toULongLong(&ok);
    if (!ok)
       return std::nullopt;
+
+   if (number == 0)
+   {
+      return 0;
+   }
 
    std::string unit = m.captured(2).toStdString();
    if (unit.empty())

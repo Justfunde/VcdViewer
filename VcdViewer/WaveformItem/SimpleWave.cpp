@@ -12,9 +12,9 @@ SimpleWaveItem::SimpleWaveItem(const std::shared_ptr<vcd::Handle> &h,
     : QGraphicsItem(parent), m_handle(h), m_pin(p), m_idx(idx)
 {
    setPos(0, yOffset);
-   setCacheMode(DeviceCoordinateCache);
+   // setCacheMode(DeviceCoordinateCache);
 
-   // Предварительно строим полный путь один раз
+   // Предвар ительно строим полный путь один раз
    PrecalcFullPath();
 }
 
@@ -32,7 +32,7 @@ void SimpleWaveItem::paint(QPainter *p,
                            QWidget *)
 {
    p->setRenderHint(QPainter::Antialiasing);
-
+   p->setClipRect(opt->exposedRect);
    // границы по X видимой области
    const qreal x0 = std::max<qreal>(0, opt->exposedRect.left());
    const qreal x1 = std::min<qreal>(m_handle->GetMaxTs(),
@@ -124,6 +124,7 @@ void SimpleWaveItem::PrecalcFullPath()
          xValueRanges.push_back({0, m_handle->GetMaxTs()});
       }
    }
+
    for (const auto &it : m_pin->GetTimeline())
    {
       uint64_t ts = it.timestamp;
@@ -175,6 +176,7 @@ void SimpleWaveItem::PrecalcFullPath()
    }
 
    m_precalcedPath = std::move(path);
+   qWarning() << m_precalcedPath;
 
    for (const auto &[left, right] : xValueRanges)
    {

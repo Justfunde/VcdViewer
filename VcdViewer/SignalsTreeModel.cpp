@@ -3,6 +3,7 @@
 #include <QModelIndex>
 #include <QVariant>
 #include <iostream>
+#include "Include/Bin2Hex.hpp"
 
 /**************************************
  *          SignalTreeModel
@@ -424,7 +425,7 @@ SignalTreeModel::data(const QModelIndex &index, int role) const
             std::string tmpVal = std::string(multiplePin->GetValueBus(m_timestamp.value()));
             if (std::all_of(tmpVal.begin(), tmpVal.end(), isdigit))
             {
-               value = QString::number(std::stoi(tmpVal, 0, 2), 16).toUpper();
+               value = QString::fromStdString(utils::BinaryToHex(tmpVal)).toUpper();
             }
             else
             {
